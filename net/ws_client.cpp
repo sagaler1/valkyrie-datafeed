@@ -8,7 +8,7 @@
 #include <iostream>
 #include <fstream>
 #include <chrono>
-#include <curl/curl.h>
+#include "api_client.h" // WinHttpGetData declaration
 #include <nlohmann/json.hpp>
 #include "handshake.pb.h"
 #include "ping.pb.h"
@@ -38,12 +38,6 @@ static DebugStreamBuf dbgBuf;
 static std::ostream dbgOut(&dbgBuf);
 #define stdcout dbgOut
 #define stdcerr dbgOut
-
-// --- Helper Functions ---
-static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
-    ((std::string*)userp)->append((char*)contents, size * nmemb);
-    return size * nmemb;
-}
 
 // --- Implementasi WsClient ---
 WsClient::WsClient() : m_run(false), m_isConnected(false), m_hAmiBrokerWnd(NULL), m_pStatus(nullptr) {}
@@ -174,15 +168,10 @@ void WsClient::pingLoop() {
 
 // --- Helper Implementations ---
 std::string WsClient::fetchWsKey(const std::string& url) {
-    CURL* curl = curl_easy_init();
-    if (!curl) return "";
-    std::string readBuffer;
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-    CURLcode res = curl_easy_perform(curl);
-    curl_easy_cleanup(curl);
-    if (res != CURLE_OK) return "";
+    std::string readBuffer = WinHttpGetData(url);
+
+    if (readBuffer.empty()) return "";
+
     try {
         auto j = json::parse(readBuffer);
         if (j.contains("data") && j["data"].contains("key"))

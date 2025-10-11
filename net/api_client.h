@@ -14,5 +14,8 @@ std::vector<Candle> fetchHistorical(const std::string& symbol, const std::string
 // Deklarasi fungsi helper (hanya "janji", tidak ada isi)
 std::string timePointToString(const std::chrono::system_clock::time_point& tp);
 
+// NEW: Fungsi helper untuk melakukan GET request menggunakan WinHTTP
+std::string WinHttpGetData(const std::string& url);
+
 #endif // API_CLIENT_H
 
