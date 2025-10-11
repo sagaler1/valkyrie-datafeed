@@ -12,11 +12,11 @@ Config& Config::getInstance() {
 }
 
 // Implementasi Constructor
-// Di sinilah kita memuat semua variabel dari .env
+// Load variables form .env
 Config::Config() {
-    dotenv::init(); // Cukup panggil init di sini!
+    dotenv::init(); // Init call
 
-    // Panggil helper untuk memuat setiap variabel
+    // Call helper for variable loads
     host = getEnvVar("PLUGIN_HOST");
     username = getEnvVar("PLUGIN_USERNAME");
     socket_url = getEnvVar("PLUGIN_SOCKET");
@@ -35,7 +35,7 @@ std::string Config::getSocketUrl() const {
     return socket_url;
 }
 
-// Implementasi helper function
+// Helper function implementation
 std::string Config::getEnvVar(const std::string& key) {
     const char* value = std::getenv(key.c_str());
     if (value == nullptr) {

@@ -1,7 +1,7 @@
 #ifndef PLUGIN_STATE_H
 #define PLUGIN_STATE_H
 
-// Enum ini sekarang bisa diakses oleh semua file yang meng-include header ini
+// This enum is now accessible to all files that include this header
 enum PluginState {
     STATE_IDLE,
     STATE_CONNECTING,

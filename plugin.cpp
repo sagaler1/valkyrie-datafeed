@@ -14,7 +14,7 @@
 std::unique_ptr<WsClient> g_wsClient;
 DataStore gDataStore;
 HWND g_hAmiBrokerWnd = NULL;
-HMODULE g_hDllModule = NULL; // Untuk menyimpan handle DLL kita
+HMODULE g_hDllModule = NULL;                // To store our DLL handle
 
 std::atomic<int> g_nStatus = STATE_IDLE;
 
@@ -179,11 +179,9 @@ PLUGINAPI int Notify(struct PluginNotification* pn) {
     return 1;
 }
 
-// --- FUNGSI YANG HILANG, SEKARANG DIKEMBALIKAN ---
+// ---- GetQuotesEx() function is a basic function that all data plugins must export and it is called each time AmiBroker wants to get new quotes.
 PLUGINAPI int GetQuotesEx(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int nSize, struct Quotation* pQuotes, GQEContext* pContext)
 {
-    // Ini adalah "Manajer" atau "Wrapper".
-    // Tugasnya hanya satu: meneruskan pekerjaan ke "Staf Ahli".
     return GetQuotesEx_Bridge(pszTicker, nPeriodicity, nLastValid, nSize, pQuotes);
 }
 

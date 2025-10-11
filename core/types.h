@@ -3,6 +3,7 @@
 
 #include <string>
 
+// ---- Structure for a single bar/candle (from historical API)
 // ---- Struct untuk satu bar/candle (dari API historis)
 struct Candle {
     std::string date;
@@ -16,6 +17,7 @@ struct Candle {
     double netforeign = 0;
 };
 
+// ---- Struktur untuk data quote terakhir dari API (saat pasar tutup)
 // ---- Struct untuk data quote terakhir dari API (saat market tutup)
 struct LatestQuote {
     std::string symbol;
@@ -33,6 +35,7 @@ struct LatestQuote {
     std::string last_update;
 };
 
+// ---- Structure for live feed data from websocket
 // ---- Struct untuk data live feed dari websocket
 struct LiveQuote {
     std::string symbol;
@@ -44,7 +47,7 @@ struct LiveQuote {
     double volume = 0.0;
     double value = 0.0;
     double frequency = 0.0;
-    double netforeign = 0.0; // <<< DITAMBAHKAN
+    double netforeign = 0.0;
     double changeValue = 0.0;
     double changePercent = 0.0;
     std::string timestamp;

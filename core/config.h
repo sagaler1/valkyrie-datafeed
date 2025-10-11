@@ -3,33 +3,33 @@
 
 #include <string>
 
-// Ini adalah Singleton Class kita
+// This is our Singleton Class
 class Config {
 public:
-    // 1. Method static untuk mendapatkan satu-satunya instance dari class ini
+    // 1. Static method to get the only instance of this class
     static Config& getInstance();
 
-    // 2. Getters untuk setiap variabel yang kita butuhkan
-    // Dibuat 'const' karena tidak mengubah state object
+    // 2. Getters for each variable we need
+    // Made ‘const’ because it does not change the object state
     std::string getHost() const;
     std::string getUsername() const;
     std::string getSocketUrl() const;
 
 private:
-    // 3. Constructor dibuat private agar tidak bisa dibuat objectnya dari luar
+    // 3. Constructor made private so that objects cannot be created from outside
     Config();
 
-    // 4. Hapus copy constructor dan assignment operator
-    // Ini mencegah Singleton-nya di-copy, yang akan merusak polanya.
+    // 4. Remove copy constructor and assignment operator
+    // This prevents the Singleton from being copied, which would break the pattern.
     Config(const Config&) = delete;
     void operator=(const Config&) = delete;
 
-    // 5. Member variables untuk menyimpan nilai dari .env
+    // 5. Member variables to store values from .env
     std::string host;
     std::string username;
     std::string socket_url;
 
-    // Helper function untuk mengambil env var dengan aman
+    // Helper function to safely retrieve env var
     std::string getEnvVar(const std::string& key);
 };
 
