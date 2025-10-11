@@ -16,7 +16,7 @@ public:
     std::string getSocketUrl() const;
 
 private:
-    // 3. Constructor made private so that objects cannot be created from outside
+    // 3. Make constructor private so that objects cannot be created from outside
     Config();
 
     // 4. Remove copy constructor and assignment operator

@@ -17,7 +17,7 @@ struct Candle {
     double netforeign = 0;
 };
 
-// ---- Struktur untuk data quote terakhir dari API (saat pasar tutup)
+// ---- Struct for latest quote data from API (market closed)
 // ---- Struct untuk data quote terakhir dari API (saat market tutup)
 struct LatestQuote {
     std::string symbol;
@@ -35,7 +35,7 @@ struct LatestQuote {
     std::string last_update;
 };
 
-// ---- Structure for live feed data from websocket
+// ---- Struct for live feed data from websocket
 // ---- Struct untuk data live feed dari websocket
 struct LiveQuote {
     std::string symbol;
