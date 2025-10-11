@@ -1,0 +1,45 @@
+# Build folders
+/build/
+/out/
+/bin/
+/obj/
+/Debug/
+/Release/
+
+# Visual Studio / CMake intermediate
+*.sln
+*.vcxproj*
+*.pdb
+*.idb
+*.ilk
+*.log
+*.tlog
+*.suo
+*.user
+*.opensdf
+*.cachefile
+
+# Environment files
+.env
+.env.*
+
+# ProtoBuf source files
+*.proto
+*.pb.cc
+*.pb.h
+
+# Temporary or log files
+*.tmp
+*.bak
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+
+# CMake config cache
+CMakeCache.txt
+CMakeFiles/
