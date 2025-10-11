@@ -1,0 +1,12 @@
+D:\VSC++\Valkyrie\bridge\ami_bridge.cpp;D:\VSC++\Valkyrie\build\Valkyrie.dir\Release\ami_bridge.obj
+D:\VSC++\Valkyrie\core\config.cpp;D:\VSC++\Valkyrie\build\Valkyrie.dir\Release\config.obj
+D:\VSC++\Valkyrie\data\data_store.cpp;D:\VSC++\Valkyrie\build\Valkyrie.dir\Release\data_store.obj
+D:\VSC++\Valkyrie\data\feed_logger.cpp;D:\VSC++\Valkyrie\build\Valkyrie.dir\Release\feed_logger.obj
+D:\VSC++\Valkyrie\net\api_client.cpp;D:\VSC++\Valkyrie\build\Valkyrie.dir\Release\api_client.obj
+D:\VSC++\Valkyrie\net\ws_client.cpp;D:\VSC++\Valkyrie\build\Valkyrie.dir\Release\ws_client.obj
+D:\VSC++\Valkyrie\plugin.cpp;D:\VSC++\Valkyrie\build\Valkyrie.dir\Release\plugin.obj
+D:\VSC++\Valkyrie\net\proto\compiled\feed.pb.cc;D:\VSC++\Valkyrie\build\Valkyrie.dir\Release\feed.pb.obj
+D:\VSC++\Valkyrie\net\proto\compiled\handshake.pb.cc;D:\VSC++\Valkyrie\build\Valkyrie.dir\Release\handshake.pb.obj
+D:\VSC++\Valkyrie\net\proto\compiled\ping.pb.cc;D:\VSC++\Valkyrie\build\Valkyrie.dir\Release\ping.pb.obj
+D:\VSC++\Valkyrie\net\proto\compiled\pong.pb.cc;D:\VSC++\Valkyrie\build\Valkyrie.dir\Release\pong.pb.obj
+D:\VSC++\Valkyrie\net\proto\compiled\subscribe.pb.cc;D:\VSC++\Valkyrie\build\Valkyrie.dir\Release\subscribe.pb.obj

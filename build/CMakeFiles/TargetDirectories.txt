@@ -1,0 +1,3 @@
+D:/VSC++/Valkyrie/build/CMakeFiles/Valkyrie.dir
+D:/VSC++/Valkyrie/build/CMakeFiles/ALL_BUILD.dir
+D:/VSC++/Valkyrie/build/CMakeFiles/ZERO_CHECK.dir

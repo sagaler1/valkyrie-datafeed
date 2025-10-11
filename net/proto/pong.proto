@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+message Pong {
+  string message = 1;
+}
+
+message PongReceive {
+  Pong pong = 2;
+}

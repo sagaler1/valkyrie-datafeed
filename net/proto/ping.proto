@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+message Ping {
+  string message = 1;
+}
+
+message WSWrapper {
+  Ping ping = 4;
+}

@@ -1,0 +1,13 @@
+#include "resource.h"
+#include <windows.h>
+
+IDR_STATUS_MENU MENU
+BEGIN
+    POPUP "Status"
+    BEGIN
+        MENUITEM "Connect",      ID_STATUS_CONNECT
+        MENUITEM "Disconnect",   ID_STATUS_DISCONNECT
+        MENUITEM SEPARATOR
+        MENUITEM "Configure...", ID_STATUS_CONFIGURE
+    END
+END
