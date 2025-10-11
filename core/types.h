@@ -3,7 +3,7 @@
 
 #include <string>
 
-// ---- Structure for a single bar/candle (from historical API)
+// ---- Struct for a single bar/candle (from historical API)
 // ---- Struct untuk satu bar/candle (dari API historis)
 struct Candle {
     std::string date;

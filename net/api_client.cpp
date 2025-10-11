@@ -200,14 +200,20 @@ std::vector<Candle> fetchHistorical(const std::string& symbol, const std::string
                 c.volume = (!vol_res.error()) ? static_cast<float>(vol_res.value().get_double().value()) : 0.0f;
                 auto freq_res = item.find_field("frequency");
                 c.frequency = (!freq_res.error()) ? static_cast<float>(freq_res.value().get_double().value()) : 0.0f;
+
+                // ---- The 'value', 'foreignbuy', dan 'foreignsell' are large integers JSON.
+                // ---- Using static_cast<double> on ondemand::value is more robust.
                 auto value_res = item.find_field("value");
-                c.value = (!value_res.error()) ? static_cast<float>(value_res.value().get_double().value()) : 0.0f;
+                c.value = (!value_res.error()) ? static_cast<double>(value_res.value()) : 0.0;
+
                 float fb = 0.0f, fs = 0.0f;
                 auto fb_res = item.find_field("foreignbuy");
-                if (!fb_res.error()) fb = static_cast<float>(fb_res.value().get_double().value());
+                if (!fb_res.error()) fb = static_cast<float>(static_cast<double>(fb_res.value()));
+
                 auto fs_res = item.find_field("foreignsell");
-                if (!fs_res.error()) fs = static_cast<float>(fs_res.value().get_double().value());
+                if (!fs_res.error()) fs = static_cast<float>(static_cast<double>(fs_res.value()));
                 c.netforeign = fb - fs;
+                // ----
                 candles.emplace_back(std::move(c));
             } catch (const simdjson::simdjson_error&) {
                 continue;
