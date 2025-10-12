@@ -7,7 +7,7 @@ set(VCPKG_TARGET_TRIPLET "x86-windows-static" CACHE STRING "Target triplet for v
 set(CMAKE_TOOLCHAIN_FILE "D:/vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE FILEPATH "Vcpkg toolchain file")
 set(CMAKE_GENERATOR_PLATFORM Win32 CACHE STRING "Target platform")
 
-project(Valkyrie LANGUAGES CXX)
+project(Valkyrie LANGUAGES CXX C)
 
 # ============================================================
 #   Build options
@@ -30,7 +30,6 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 #   Dependencies via vcpkg
 # ============================================================
 find_package(ixwebsocket CONFIG REQUIRED)
-find_package(Protobuf CONFIG REQUIRED)
 find_package(simdjson CONFIG REQUIRED)
 
 # ============================================================
@@ -47,18 +46,21 @@ file(GLOB_RECURSE CPP_FILES
 )
 
 # 2. Ambil semua file .cc dari folder protobuf
-file(GLOB_RECURSE PROTO_FILES "net/proto/compiled/*.pb.cc")
+file(GLOB_RECURSE NANOPB_RUNTIME_SOURCES "core/nanopb/*.c") # <-- TAMBAHKAN: Ambil source code runtime nanopb
+
+# 3. Ambil semua file .c hasil GENERATE dari nanopb
+file(GLOB_RECURSE NANOPB_GENERATED_SOURCES "net/proto/compiled/*.pb.c") # <-- UBAH: Targetnya sekarang .pb.c di folder compiled
 
 # 3. Ambil file resource
 file(GLOB RC_FILE "core/resource.rc")
 
-file(GLOB_RECURSE NANOPB
-    "core/nanopb/*.c"
-    "core/nanopb/*.h"
-)
-
 # 4. Gabungkan semua file ke dalam satu variabel
-set(SOURCE_FILES ${CPP_FILES} ${PROTO_FILES} ${RC_FILE} ${NANOPB})
+set(SOURCE_FILES 
+    ${CPP_FILES} 
+    ${NANOPB_RUNTIME_SOURCES}
+    ${NANOPB_GENERATED_SOURCES}
+    ${RC_FILE} 
+)
 
 # ============================================================
 #   Library definition
@@ -73,7 +75,6 @@ add_library(Valkyrie SHARED
 # ============================================================
 target_link_libraries(Valkyrie PRIVATE
     ixwebsocket::ixwebsocket
-    protobuf::libprotobuf
     simdjson::simdjson
     Winhttp
     ws2_32
@@ -88,7 +89,7 @@ target_include_directories(Valkyrie PRIVATE
     ${CMAKE_SOURCE_DIR}/core/nanopb
     ${CMAKE_SOURCE_DIR}/data
     ${CMAKE_SOURCE_DIR}/net
-    ${CMAKE_SOURCE_DIR}/net/proto/compiled  # <-- PENTING: tambahkan ini untuk file .pb.h
+    ${CMAKE_SOURCE_DIR}/net/proto/compiled          # <-- PENTING: tambahkan ini untuk file .pb.h
     ${CMAKE_SOURCE_DIR}/bridge
 )
 
@@ -100,11 +101,13 @@ target_compile_definitions(Valkyrie PRIVATE
     _USRDLL
     _CRT_SECURE_NO_WARNINGS
     IXWEBSOCKET_USE_TLS=1
-    
 )
 
 if (MSVC)
     target_compile_options(Valkyrie PRIVATE /W3 /EHsc)
+    # Nanopb adalah C, mungkin ada warning C4244, C4267, dll. 
+    # Bisa di-suppress jika mengganggu.
+    target_compile_options(Valkyrie PRIVATE /wd4244 /wd4267)
 endif()
 
 # ============================================================

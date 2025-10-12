@@ -7,43 +7,33 @@
 #include <algorithm>
 #include <vector>
 #include <chrono>
+#include <string>
 
-// === Redirect std::cout / std::cerr ke DebugView ===
-class DebugStreamBuf : public std::streambuf {
-protected:
-    virtual int overflow(int c) override {
-        if (c != EOF) {
-            char buf[2] = { (char)c, 0 };
-            OutputDebugStringA(buf);
-        }
-        return c;
-    }
-};
-
-static DebugStreamBuf dbgBuf;
-static std::ostream dbgOut(&dbgBuf);
-#define stdcout dbgOut
-#define stdcerr dbgOut
+// ---- Logging
+void LogBridge(const std::string& msg) {
+    OutputDebugStringA((msg + "\n").c_str());
+}
 
 // Forward declaration
 int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int nSize, struct Quotation* pQuotes);
 
 int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int nSize, struct Quotation* pQuotes)
-{
-    stdcout << "[Bridge] GetQuotesEx called for Ticker: " << pszTicker
-            << ", Periodicity: " << nPeriodicity
-            << ", nLastValid: " << nLastValid
-            << ", nSize: " << nSize << std::endl;
+{   
+    LogBridge("[Bridge] GetQuotesEx called for Ticker: " + std::string(pszTicker) +
+              ", Periodicity: " + std::to_string(nPeriodicity) +
+              ", nLastValid: " + std::to_string(nLastValid) + 
+              ", nSize: " + std::to_string(nSize)
+            );
 
     if (nPeriodicity != PERIODICITY_EOD) {
-        stdcout << "[Bridge] Ignoring non-EOD request." << std::endl;
+        LogBridge("[Bridge] Ignoring non-EOD request.");
+        //stdcout << "[Bridge] Ignoring non-EOD request." << std::endl;
         return nLastValid + 1;
     }
 
     std::string symbol(pszTicker);
     std::vector<Candle> candles = gDataStore.getHistorical(symbol);
-    stdcout << "[Bridge] Checked cache for " << symbol
-            << ". Found " << candles.size() << " bars." << std::endl;
+    LogBridge("[Bridge] Checked cache for " + symbol + ". Found " + std::to_string(candles.size()) + " bars.");
 
     // === SMART BACKFILL ===
     bool need_fetch = candles.empty();
@@ -61,8 +51,10 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
     }
 
     if (need_fetch) {
-        stdcout << "[Bridge] Cache empty or outdated. Fetching from API for "
-                << symbol << " (lookback " << lookback_days << " days)" << std::endl;
+        LogBridge(
+            "[Bridge] Cache empty. Fetching from API for " + symbol +
+            " (lookback " + std::to_string(lookback_days) + " days)"
+            );
 
         auto now = std::chrono::system_clock::now();
         auto end_time = now;
@@ -72,16 +64,16 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
         std::string from_date = timePointToString(start_time);
 
         candles = fetchHistorical(symbol, from_date, to_date);
-        stdcout << "[Bridge] API call finished. Received " << candles.size() << " bars." << std::endl;
+        LogBridge("[Bridge] API call finished. Received " + std::to_string(candles.size()) + " bars.");
 
         if (!candles.empty()) {
             gDataStore.setHistorical(symbol, candles);
-            stdcout << "[Bridge] Data for " << symbol << " cached." << std::endl;
+            LogBridge("[Bridge] Data for " + symbol + " cached.");
         }
     }
 
     if (candles.empty()) {
-        stdcout << "[Bridge] No data available for " << symbol << std::endl;
+        LogBridge("[Bridge] No data available for " + symbol);
         return nLastValid + 1;
     }
 
@@ -91,7 +83,7 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
     });
 
     int numToCopy = (std::min)((int)candles.size(), nSize);
-    stdcout << "[Bridge] Copying " << numToCopy << " bars to AmiBroker." << std::endl;
+    LogBridge("[Bridge] Copying " + std::to_string(numToCopy) + " bars to AmiBroker.");
 
     if (numToCopy > 0) {
         int start_index = candles.size() - numToCopy;
@@ -107,7 +99,7 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
                 pQuotes[i].DateTime.PackDate.Minute = 63;
                 pQuotes[i].DateTime.PackDate.Hour = 31;
             } else {
-                stdcerr << "[Bridge] ERROR: Invalid date format: " << candle.date << std::endl;
+                LogBridge("[Bridge] ERROR: Invalid date format: " + candle.date);
                 continue;
             }
 
@@ -122,6 +114,6 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
         }
     }
 
-    stdcout << "[Bridge] Finished copying. Returning count: " << numToCopy << std::endl;
+    LogBridge("[Bridge] Finished copying. Returning count: " + std::to_string(numToCopy));
     return numToCopy;
 }

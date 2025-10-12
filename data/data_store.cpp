@@ -1,4 +1,5 @@
 #include "data_store.h"
+#include <algorithm>                    // Diperlukan untuk std::max/min
 
 void DataStore::setHistorical(const std::string& symbol, const std::vector<Candle>& candles) {
     std::lock_guard<std::mutex> lock(m_mtx);
@@ -19,29 +20,35 @@ bool DataStore::hasHistorical(const std::string& symbol) {
 }
 
 void DataStore::updateLiveQuote(const StockFeed& feed) {
-    if (!feed.has_stock_data()) return;
-    const auto& s = feed.stock_data();
-    std::string symbol = s.symbol();
+    // Parameter 'feed' sekarang adalah struct Nanopb
+    if (!feed.has_stock_data) return;
+    const auto& s = feed.stock_data;      // 's' adalah referensi ke struct StockData
+    std::string symbol = s.symbol;
 
     std::lock_guard<std::mutex> lock(m_mtx);
-    LiveQuote& q = m_liveQuotes[symbol]; // Get reference to update
+    LiveQuote& q = m_liveQuotes[symbol];    // Get reference to update
     
     q.symbol = symbol;
-    q.lastprice = s.lastprice();
-    q.previous = s.previous();
-    q.open = s.open();
-    q.high = s.high();
-    q.low = s.low();
-    q.volume = s.volume();
-    q.value = s.value();
-    q.frequency = s.frequency();
-    q.timestamp = s.timestamp();
-    q.netforeign = s.foreignbuy() - s.foreignsell();
+    q.lastprice = s.close;                  // Di proto baru, lastprice adalah 'close'
+    q.previous = s.previous;
+    q.open = s.open;
+    q.high = s.high;
+    q.low = s.low;
+    q.volume = s.volume;
+    q.value = s.value;
+    q.frequency = s.frequency;
+    q.timestamp = s.date;
+    q.netforeign = s.foreignbuy - s.foreignsell;
 
-    if (s.has_change()) {
-        q.changeValue = s.change().value();
-        q.changePercent = s.change().percentage();
+    // Cek flag 'has_change' untuk sub-pesan PriceChange
+    if (s.has_change) {
+        q.changeValue = s.change.value;
+        q.changePercent = s.change.percentage;
     }
+
+    // Proto baru tidak punya field 'previous'. Kita bisa hitung manual.
+    // Previous = Close - Change
+    q.previous = s.close - q.changeValue;
 }
 
 LiveQuote DataStore::getLiveQuote(const std::string& symbol) {
