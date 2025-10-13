@@ -32,63 +32,42 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
     }
 
     std::string symbol(pszTicker);
-    std::vector<Candle> candles = gDataStore.getHistorical(symbol);
-    LogBridge("[Bridge] Checked cache for " + symbol + ". Found " + std::to_string(candles.size()) + " bars.");
 
-    // === SMART BACKFILL ===
-    bool need_fetch = candles.empty();
-    int lookback_days = 0;
+    // ---- SMART BACKFILL LOGIC v3 (with MERGE) ----
+    int lookback_days = (nLastValid <= 100) ? 260 : 14;
+    LogBridge( "[Bridge] Smart Backfill decision: nLastValid = " + std::to_string(nLastValid)
+                + ". Fetching " + std::to_string(lookback_days) + " days of data for " + symbol );
 
-    if (candles.empty()) {
-        // symbol baru
-        lookback_days = 260; // 1 tahun
-    } else if (nLastValid < 100) {
-        // database masih sedikit
-        lookback_days = 260; // 1 tahun
-    } else {
-        // update rutin
-        lookback_days = 14; // 2 minggu
+    auto now = std::chrono::system_clock::now();
+    std::string to_date = timePointToString(now);
+    std::string from_date = timePointToString(now - std::chrono::hours(24 * lookback_days));
+
+    // 1. Fetch data terbaru dari API
+    std::vector<Candle> recent_candles = fetchHistorical(symbol, from_date, to_date);
+    LogBridge("[Bridge] API call finished. Received " + std::to_string(recent_candles.size()) + " recent bars.");
+
+    // 2. GABUNGKAN (MERGE) data baru dengan cache yang ada, BUKAN TIMPA (OVERWRITE)
+    gDataStore.mergeHistorical(symbol, recent_candles);
+    LogBridge("[Bridge] Merged recent data into the cache.");
+
+    // 3. Ambil KESELURUHAN data yang sudah ter-merge dari cache
+    std::vector<Candle> all_candles = gDataStore.getHistorical(symbol);
+
+    if (all_candles.empty()) {
+        LogBridge("[Bridge] No data available for " + symbol + " after merge.");
+        return 0; // Return 0 karena tidak ada data sama sekali
     }
 
-    if (need_fetch) {
-        LogBridge(
-            "[Bridge] Cache empty. Fetching from API for " + symbol +
-            " (lookback " + std::to_string(lookback_days) + " days)"
-            );
+    // Data dari gDataStore (setelah di-merge via map) sudah pasti terurut berdasarkan tanggal
+    // jadi kita tidak perlu panggil std::sort lagi di sini.
 
-        auto now = std::chrono::system_clock::now();
-        auto end_time = now;
-        auto start_time = end_time - std::chrono::hours(24 * lookback_days);
-
-        std::string to_date = timePointToString(end_time);
-        std::string from_date = timePointToString(start_time);
-
-        candles = fetchHistorical(symbol, from_date, to_date);
-        LogBridge("[Bridge] API call finished. Received " + std::to_string(candles.size()) + " bars.");
-
-        if (!candles.empty()) {
-            gDataStore.setHistorical(symbol, candles);
-            LogBridge("[Bridge] Data for " + symbol + " cached.");
-        }
-    }
-
-    if (candles.empty()) {
-        LogBridge("[Bridge] No data available for " + symbol);
-        return nLastValid + 1;
-    }
-
-    // --- Sort data dari lama ke baru ---
-    std::sort(candles.begin(), candles.end(), [](const Candle& a, const Candle& b) {
-        return a.date < b.date;
-    });
-
-    int numToCopy = (std::min)((int)candles.size(), nSize);
+    int numToCopy = (std::min)((int)all_candles.size(), nSize);
     LogBridge("[Bridge] Copying " + std::to_string(numToCopy) + " bars to AmiBroker.");
 
     if (numToCopy > 0) {
-        int start_index = candles.size() - numToCopy;
+        int start_index = all_candles.size() - numToCopy;
         for (int i = 0; i < numToCopy; ++i) {
-            const auto& candle = candles[start_index + i];
+            const auto& candle = all_candles[start_index + i];
             pQuotes[i].DateTime.Date = 0;
 
             int year, month, day;

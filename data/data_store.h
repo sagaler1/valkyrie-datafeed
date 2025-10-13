@@ -17,6 +17,10 @@ private:
 public:
     // Untuk data historis dari API
     void setHistorical(const std::string& symbol, const std::vector<Candle>& candles);
+
+    // NEW: Fungsi cerdas untuk menggabungkan data baru dengan cache yang ada
+    void mergeHistorical(const std::string& symbol, const std::vector<Candle>& new_candles);
+
     std::vector<Candle> getHistorical(const std::string& symbol);
     bool hasHistorical(const std::string& symbol);
 

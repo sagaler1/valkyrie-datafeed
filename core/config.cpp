@@ -1,7 +1,7 @@
 #include "config.h"
-#include "dotenv.h"   // Butuh ini untuk init()
-#include <stdexcept>  // Butuh ini untuk throw error
-#include <cstdlib>    // Butuh ini untuk std::getenv
+#include "dotenv.h"   // init()
+#include <stdexcept>  // throw error
+#include <cstdlib>    // std::getenv
 
 // Implementasi method static getInstance()
 Config& Config::getInstance() {
@@ -11,7 +11,7 @@ Config& Config::getInstance() {
     return instance;
 }
 
-// Implementasi Constructor
+// Constructor implementation
 // Load variables form .env
 Config::Config() {
     dotenv::init(); // Init call
@@ -39,8 +39,8 @@ std::string Config::getSocketUrl() const {
 std::string Config::getEnvVar(const std::string& key) {
     const char* value = std::getenv(key.c_str());
     if (value == nullptr) {
-        // Jika env var tidak ada, program akan berhenti dengan error
-        // Ini lebih baik daripada crash di tempat lain secara acak
+        // If the env variable does not exist, the program will stop with an error message.
+        // This is better than the program crashing randomly elsewhere.
         throw std::runtime_error("Environment variable not found: " + key);
     }
     return std::string(value);

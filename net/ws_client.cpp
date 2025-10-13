@@ -21,7 +21,11 @@
 #include "config.h"
 
 void LogWS(const std::string& msg) {
-    OutputDebugStringA((msg + "\n").c_str());
+    SYSTEMTIME t;
+    GetLocalTime(&t);
+    char buf[64];
+    sprintf_s(buf, "[%02d:%02d:%02d.%03d] ", t.wHour, t.wMinute, t.wSecond, t.wMilliseconds);
+    OutputDebugStringA((std::string(buf) + msg + "\n").c_str());
 }
 
 // --- Implementasi WsClient ---
@@ -86,6 +90,8 @@ void WsClient::run() {
             if (m_pStatus) *m_pStatus = STATE_CONNECTED;
             m_ws->sendBinary(buildHandshakeBinary(m_userId, wskey));
             LogWS("[WS] Handshake binary sent.");
+            m_ws->sendBinary(buildPingBinary());
+            LogWS("[WS] Sending first ping..");
 
             if (m_pingThread.joinable()) m_pingThread.join();
             m_pingThread = std::thread(&WsClient::pingLoop, this);
@@ -134,8 +140,7 @@ void WsClient::run() {
                     gDataStore.updateLiveQuote(feed); // Kirim struct nanopb ke DataStore
                     if (m_hAmiBrokerWnd) PostMessage(m_hAmiBrokerWnd, WM_USER_STREAMING_UPDATE, 0, 0);
                 } else {
-                    // Opsional: Log jika ada error decoding
-                    LogWS(std::string("[WS] ERROR: Nanopb decoding failed for StockFeed: ") + PB_GET_ERROR(&stream));
+                    LogWS(std::string("[WS] ERROR: Decoding failed for StockFeed: ") + PB_GET_ERROR(&stream));
                 }
                 // ---- end nanopb parser ----
             }
