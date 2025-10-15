@@ -13,6 +13,9 @@
 /CMakeCache.txt
 *.cmake
 
+#CMake
+CMakeLists.txt
+
 # Intermediate Visual Studio project files
 *.suo
 *.user
@@ -39,6 +42,7 @@
 
 # Auto-generated files (Protobuf, etc.)
 *.pb.cc
+*.pb.c
 *.pb.h
 *.proto
 

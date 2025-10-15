@@ -2,7 +2,6 @@
 #include "api_client.h"
 #include "config.h"
 #include <windows.h>
-#include <iostream>
 #include <vector>
 #include <string>
 #include <chrono>

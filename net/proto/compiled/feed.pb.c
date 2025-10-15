@@ -6,10 +6,10 @@
 #error Regenerate this file with the current version of nanopb generator.
 #endif
 
-PB_BIND(StockFeed, StockFeed, 2)
+PB_BIND(StockFeed, StockFeed, AUTO)
 
 
-PB_BIND(StockData, StockData, 2)
+PB_BIND(StockData, StockData, AUTO)
 
 
 PB_BIND(PriceChange, PriceChange, AUTO)

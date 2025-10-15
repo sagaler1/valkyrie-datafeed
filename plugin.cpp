@@ -184,6 +184,3 @@ PLUGINAPI int GetQuotesEx(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, i
 {
     return GetQuotesEx_Bridge(pszTicker, nPeriodicity, nLastValid, nSize, pQuotes);
 }
-
-
-

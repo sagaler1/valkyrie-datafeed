@@ -4,9 +4,6 @@
 #include "pluginstate.h"
 #include "dotenv.h"
 #include <windows.h>
-#include <sstream>
-#include <iostream>
-#include <fstream>
 #include <chrono>
 #include "api_client.h"         // WinHttpGetData declaration
 
@@ -140,6 +137,13 @@ void WsClient::run() {
                     gDataStore.updateLiveQuote(feed); // Kirim struct nanopb ke DataStore
                     if (m_hAmiBrokerWnd) PostMessage(m_hAmiBrokerWnd, WM_USER_STREAMING_UPDATE, 0, 0);
                 } else {
+                    if (msg->str.size() < 12) {
+                        return;     // heartbeat / pong
+                    }
+                    std::string payload(msg->str.begin(), msg->str.end());
+                    if(payload.find("none") != std::string::npos) {
+                        return;
+                    }
                     LogWS(std::string("[WS] ERROR: Decoding failed for StockFeed: ") + PB_GET_ERROR(&stream));
                 }
                 // ---- end nanopb parser ----

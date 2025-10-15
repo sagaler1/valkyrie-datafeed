@@ -1,6 +1,9 @@
 #include "data_store.h"
 #include <algorithm>                    // Diperlukan untuk std::max/min
 #include <map>
+#include <chrono>
+#include <sstream>
+#include <iomanip>
 
 void DataStore::setHistorical(const std::string& symbol, const std::vector<Candle>& candles) {
     std::lock_guard<std::mutex> lock(m_mtx);
@@ -97,21 +100,52 @@ LiveQuote DataStore::getLiveQuote(const std::string& symbol) {
 
 void DataStore::mergeLiveToHistorical(const std::string& symbol) {
     std::lock_guard<std::mutex> lock(m_mtx);
-    if (m_historicalData.count(symbol) && m_liveQuotes.count(symbol)) {
-        auto& candles = m_historicalData[symbol];
-        auto& live = m_liveQuotes[symbol];
+    if (!m_historicalData.count(symbol) || !m_liveQuotes.count(symbol)) {
+        return;         // Keluar jika alah satu data tidak ada
+    }
 
-        if (!candles.empty()) {
-            // Update bar terakhir dengan data live
-            Candle& lastCandle = candles.back();
-            lastCandle.close = live.lastprice;
-            lastCandle.high = std::max(lastCandle.high, live.high);
-            lastCandle.low = std::min(lastCandle.low, live.low);
-            lastCandle.volume = live.volume;
-            lastCandle.value = live.value;
-            lastCandle.frequency = live.frequency;
-            lastCandle.netforeign = live.netforeign;
-        }
+    auto& candles = m_historicalData.at(symbol);
+    auto& live = m_liveQuotes.at(symbol);
+
+    if (candles.empty()) {
+        return;         // Keluar jika tidak ada data historis sama sekali
+    }
+
+    // ---- NEW LOGIC: SADAR TANGGAL ----
+    
+    // 1. Dapatkan tanggal hari ini YYYY-MM-DD
+    auto now = std::chrono::system_clock::now();
+    auto in_time_t = std::chrono::system_clock::to_time_t(now);
+    std::stringstream ss;
+    std::tm buf;
+    localtime_s(&buf, &in_time_t);      // localtime_s is thread-safe on Windows
+    ss << std::put_time(&buf, "%Y-%m-%d");
+    std::string today_date_str = ss.str();
+
+    Candle& lastCandle = candles.back();
+
+    // 2. bandingkan tanggal bar terakhir dengan tanggal hari ini
+    if (lastCandle.date == today_date_str) {
+        // KASUS A. Tick untuk hari yang sama. Cukup UPDATE bar terakhir.
+        lastCandle.close = live.lastprice;
+        lastCandle.high = std::max(lastCandle.high, live.high);
+        lastCandle.low = std::min(lastCandle.low, live.low);
+        lastCandle.volume = live.volume;
+        lastCandle.value = live.value;
+        lastCandle.frequency = live.frequency;
+        lastCandle.netforeign = live.netforeign;
+    } else {
+        // KASUS B: Ini tick pertama untuk HARI BARU. Buat bar BARU.
+        Candle newCandle;
+        newCandle.date = today_date_str;
+        newCandle.open = live.open; // Open hari ini adalah open dari live feed
+        newCandle.high = live.high;
+        newCandle.low = live.low;
+        newCandle.close = live.lastprice;
+        newCandle.volume = live.volume;
+        newCandle.value = live.value;
+        newCandle.frequency = live.frequency;
+        newCandle.netforeign = live.netforeign;
+        candles.push_back(newCandle);
     }
 }
-

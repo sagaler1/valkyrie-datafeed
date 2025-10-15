@@ -3,7 +3,7 @@
 #include <stdexcept>  // throw error
 #include <cstdlib>    // std::getenv
 
-// Implementasi method static getInstance()
+// ---- Implementasi method static getInstance()
 Config& Config::getInstance() {
     // C++11 menjamin bahwa inisialisasi static local variable
     // hanya terjadi sekali dan thread-safe. Ini cara modern bikin Singleton.
@@ -11,8 +11,8 @@ Config& Config::getInstance() {
     return instance;
 }
 
-// Constructor implementation
-// Load variables form .env
+// ---- Constructor implementation
+// ---- Load variables form .env
 Config::Config() {
     dotenv::init(); // Init call
 
@@ -22,7 +22,7 @@ Config::Config() {
     socket_url = getEnvVar("PLUGIN_SOCKET");
 }
 
-// Implementasi Getters
+// ---- Implementasi Getters
 std::string Config::getHost() const {
     return host;
 }
@@ -35,12 +35,12 @@ std::string Config::getSocketUrl() const {
     return socket_url;
 }
 
-// Helper function implementation
+// ---- Helper function implementation
 std::string Config::getEnvVar(const std::string& key) {
     const char* value = std::getenv(key.c_str());
     if (value == nullptr) {
-        // If the env variable does not exist, the program will stop with an error message.
-        // This is better than the program crashing randomly elsewhere.
+        // Jika .env var tidak ada, maka program akan stop dengan error message
+        // Ini lebih baik daripada program yang tiba-tiba crash secara acak di tempat lain
         throw std::runtime_error("Environment variable not found: " + key);
     }
     return std::string(value);
