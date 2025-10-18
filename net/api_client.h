@@ -5,6 +5,7 @@
 #include <vector>
 #include <chrono>
 #include "types.h" // <-- Pastikan file 'types.h' ada
+#include <map>
 
 // --- Function Declarations ---
 
@@ -14,8 +15,15 @@ std::vector<Candle> fetchHistorical(const std::string& symbol, const std::string
 // Deklarasi fungsi helper (hanya "janji", tidak ada isi)
 std::string timePointToString(const std::chrono::system_clock::time_point& tp);
 
-// NEW: Fungsi helper untuk melakukan GET request menggunakan WinHTTP
+// Fungsi helper untuk melakukan GET request menggunakan WinHTTP
 std::string WinHttpGetData(const std::string& url);
+
+// Fungsi untuk mengambil data EOD backfill untuk SEMUA simbol pada tanggal tertentu.
+// Mengembalikan Map<Symbol, Candle> untuk data yang ter-parse.
+std::map<std::string, Candle> fetchDailyBackfill(const std::string& date);
+
+// Fungsi untuk mengambil daftar semua simbol yang terdaftar di bursa
+std::vector<SymbolInfo> fetchSymbolList();
 
 #endif // API_CLIENT_H
 

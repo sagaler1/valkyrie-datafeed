@@ -5,10 +5,12 @@
 #include "resource.h"
 #include "pluginstate.h"
 #include "config.h"
+#include "EODBackfillDlg.h"
+#include "ConfigureDlg.h"
 #include <memory>
 #include <atomic>
-#include <iostream>
 #include <windows.h>
+#include <CommCtrl.h>
 
 // --- Global Variables ---
 std::unique_ptr<WsClient> g_wsClient;
@@ -35,9 +37,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
     return TRUE;
 }
 
-
 // --- Main Plugin Functions ---
-
 PLUGINAPI int GetPluginInfo(struct PluginInfo* pInfo) {
     pInfo->nStructSize = sizeof(PluginInfo);
     pInfo->nType = PLUGIN_TYPE_DATA;
@@ -50,6 +50,15 @@ PLUGINAPI int GetPluginInfo(struct PluginInfo* pInfo) {
 }
 
 PLUGINAPI int Init(void) {
+    // ---- TAMBAHKAN BLOK INISIALISASI INI ----
+    // Inisialisasi Common Controls untuk mengaktifkan kontrol modern
+    // seperti Date Picker.
+    INITCOMMONCONTROLSEX icex;
+    icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
+    icex.dwICC = ICC_DATE_CLASSES; // Kita hanya butuh kelas untuk Date/Time controls
+    InitCommonControlsEx(&icex);
+    // -----------------------------------------
+
     g_wsClient = std::make_unique<WsClient>();
     g_nStatus = STATE_IDLE;
     return 1;
@@ -136,10 +145,16 @@ PLUGINAPI int Notify(struct PluginNotification* pn) {
     }
     
     if (pn->nReason == REASON_STATUS_RMBCLICK) {
+        OutputDebugStringA("[PLUGIN] Right-click event received\n");
+        HMENU hMenu = LoadMenu(g_hDllModule, MAKEINTRESOURCE(IDR_STATUS_MENU));
+        if (!hMenu) {
+            OutputDebugStringA("[PLUGIN] LoadMenu FAILED!\n");
+            return 1;
+        }
         std::string username = Config::getInstance().getUsername();
         std::string api_host = Config::getInstance().getHost();
 
-        HMENU hMenu = LoadMenu(g_hDllModule, MAKEINTRESOURCE(IDR_STATUS_MENU));
+        //HMENU hMenu = LoadMenu(g_hDllModule, MAKEINTRESOURCE(IDR_STATUS_MENU));
         HMENU hSubMenu = GetSubMenu(hMenu, 0);
 
         if (hSubMenu) {
@@ -154,9 +169,26 @@ PLUGINAPI int Notify(struct PluginNotification* pn) {
             POINT pos;
             GetCursorPos(&pos);
             SetForegroundWindow(g_hAmiBrokerWnd);
-            int selection = TrackPopupMenu(hSubMenu, TPM_NONOTIFY | TPM_RETURNCMD, pos.x, pos.y, 0, g_hAmiBrokerWnd, NULL);
+            int selection = TrackPopupMenu(
+                hSubMenu, 
+                TPM_NONOTIFY | TPM_RETURNCMD, 
+                pos.x, pos.y, 
+                0, 
+                g_hAmiBrokerWnd, 
+                NULL
+            );
+
+            {
+                char buf[128];
+                sprintf_s(buf, "[PLUGIN] TrackPopupMenu returned ID: %d", selection);
+                OutputDebugStringA(buf);
+            }
+
             PostMessage(g_hAmiBrokerWnd, WM_NULL, 0, 0);
 
+            // =======================================================
+            // ---- (2) MODIFIKASI SWITCH CASE UNTUK MENU BARU ----
+            // =======================================================
             switch (selection) {
                 case ID_STATUS_CONNECT:
                     if(g_wsClient) {
@@ -170,12 +202,43 @@ PLUGINAPI int Notify(struct PluginNotification* pn) {
                     }
                     g_nStatus = STATE_IDLE;
                     break;
+                case ID_STATUS_EOD_BACKFILL:
+                    { // Kurung kurawal untuk membuat scope lokal
+                        CEODBackfillDlg eodDlg;
+                        eodDlg.DoModal(g_hAmiBrokerWnd);
+                    }
+                    break;
                 case ID_STATUS_CONFIGURE:
                     break;
             }
         }
         DestroyMenu(hMenu);
     }
+    return 1;
+}
+
+PLUGINAPI int Configure( LPCTSTR pszPath, struct InfoSite *pSite )
+{
+    // Pastikan kita menggunakan Dll handle kita saat membuka dialog
+    extern HMODULE g_hDllModule; 
+
+    // --- FIX KRUSIAL: CEK nStructSize ---
+    // sizeof( struct InfoSite ) akan mengambil ukuran struct InfoSite di compile time plugin
+    if (pSite && pSite->nStructSize >= sizeof( struct InfoSite ) )
+    {
+        // VERSI MODERN (AddStockNew) didukung!
+        CConfigureDlg oDlg(pSite); // Berikan pointer InfoSite ke dialog
+        oDlg.DoModal(g_hAmiBrokerWnd); // Tampilkan dialog
+    }
+    else
+    {
+        // Versi lama atau ukuran tidak sesuai. 
+        // JANGAN PANGGIL AddStockNew. Tampilkan pesan peringatan.
+        MessageBoxA(g_hAmiBrokerWnd, 
+                    "Plugin requires a newer version of AmiBroker or InfoSite structure size is too small. Update AmiBroker to v5.27+.", 
+                    "Valkyrie Datafeed Error", MB_ICONERROR);
+    }
+
     return 1;
 }
 

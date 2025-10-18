@@ -1,19 +1,36 @@
+// File: core/resource.h (FIXED)
+
 // Microsoft Visual C++ generated include file.
 // Used by resource.rc
 
-#define IDR_STATUS_MENU 101
-#define ID_STATUS_CONNECT 40001
-#define ID_STATUS_DISCONNECT 40002
-#define ID_STATUS_CONFIGURE 40003
+// --- Menu Item untuk Status Koneksi (di rentang aman) ---
+#define ID_STATUS_CONNECT           60001
+#define ID_STATUS_DISCONNECT        60002
+#define ID_STATUS_EOD_BACKFILL      60003
+#define ID_STATUS_CONFIGURE         60004
+
+// --- Dialog EOD Backfill dan Kontrolnya ---
+#define IDD_EOD_BACKFILL            102
+#define IDC_DATEPICKER_EOD          1001
+#define IDC_FETCH_BUTTON            1002
+#define IDC_STATUS_TEXT             1003
+
+// --- Menu Resource Utama ---
+#define IDR_STATUS_MENU             101
+
+// --- Dialog Retrieve Symbols dan Kontrolnya ---
+// Kita reuse IDD_EOD_BACKFILL (102) atau naikkan satu ID baru
+#define IDD_CONFIGURE_PLUGIN        104
+#define IDC_RETRIEVE_BUTTON         1005
+#define IDC_STATUS_SYMBOL           1006
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        102
-#define _APS_NEXT_COMMAND_VALUE         40004
-#define _APS_NEXT_CONTROL_VALUE         1001
-#define _APS_NEXT_SYMED_VALUE           101
+#define _APS_NEXT_RESOURCE_VALUE        103
+#define _APS_NEXT_COMMAND_VALUE         57605
+#define _APS_NEXT_CONTROL_VALUE         1004
+#define _APS_NEXT_SYMED_VALUE           102
 #endif
 #endif
-

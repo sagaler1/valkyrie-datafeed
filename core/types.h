@@ -53,5 +53,13 @@ struct LiveQuote {
     std::string timestamp;
 };
 
+// ---- Struct untuk Metadata Simbol (dari API Emiten List)
+struct SymbolInfo {
+    std::string code;
+    std::string name;
+    std::string sector;
+    std::string industry;
+};
+
 #endif // TYPES_H
 

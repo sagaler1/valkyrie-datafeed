@@ -149,3 +149,35 @@ void DataStore::mergeLiveToHistorical(const std::string& symbol) {
         candles.push_back(newCandle);
     }
 }
+
+void DataStore::updateEodBar(const std::string& symbol, const Candle& candle) {
+    std::lock_guard<std::mutex> lock(m_mtx);
+
+    // KUNCI UTAMA: Hanya proses jika cache untuk simbol ini SUDAH ADA.
+    if (m_historicalData.count(symbol) == 0) {
+        // Jika cache belum ada, jangan lakukan apa-apa.
+        // Biarkan GetQuotesEx yang menanganinya saat simbol ini dibuka.
+        return;
+    }
+
+    auto& candles = m_historicalData.at(symbol);
+    bool found = false;
+
+    // Cari bar dengan tanggal yang sama untuk di-update
+    for (auto& existing_candle : candles) {
+        if (existing_candle.date == candle.date) {
+            existing_candle = candle; // Timpa dengan data baru
+            found = true;
+            break;
+        }
+    }
+
+    // Jika tidak ada bar dengan tanggal yang sama (kasus data baru), tambahkan di akhir
+    if (!found) {
+        candles.push_back(candle);
+        // Pastikan data tetap terurut berdasarkan tanggal
+        std::sort(candles.begin(), candles.end(), [](const Candle& a, const Candle& b) {
+            return a.date < b.date;
+        });
+    }
+}

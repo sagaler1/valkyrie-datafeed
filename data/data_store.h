@@ -30,6 +30,9 @@ public:
 
     // Untuk menggabungkan data live ke bar historis terakhir
     void mergeLiveToHistorical(const std::string& symbol);
+
+    // NEW: Fungsi khusus untuk mengupdate satu bar EOD di cache yang sudah ada.
+    void updateEodBar(const std::string& symbol, const Candle& candle);
 };
 
 extern DataStore gDataStore;

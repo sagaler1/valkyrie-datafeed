@@ -15,6 +15,10 @@
 #include <simdjson.h>
 using namespace std::chrono;
 
+#define MAX_SYMBOL_LEN 48
+
+std::string host = Config::getInstance().getHost();
+
 // ---- Fungsi Logging & Helper
 void LogApi(const std::string& msg) {
     SYSTEMTIME t;
@@ -171,8 +175,6 @@ static size_t estimate_days_between(const std::string& from, const std::string& 
 // Retrieve all data from the API in one full call.
 // The “from” and “to” parameters are sent directly to the backend endpoint.
 std::vector<Candle> fetchHistorical(const std::string& symbol, const std::string& from, const std::string& to) {
-    std::string host = Config::getInstance().getHost();
-
     std::vector<Candle> candles;
     std::string readBuffer;
 
@@ -279,4 +281,285 @@ std::vector<Candle> fetchHistorical(const std::string& symbol, const std::string
     }
 
     return candles;
+}
+
+// --- FUNGSI BARU: fetchDailyBackfill untuk SEMUA simbol pada tanggal tertentu ---
+std::map<std::string, Candle> fetchDailyBackfill(const std::string& date) {
+    std::map<std::string, Candle> daily_summary;
+    std::string readBuffer;
+
+    //Buat API dengan parameter tanggal
+    std::string url = host + "/api/amibroker/dailybackfill";
+    if (!date.empty()) {
+        url += "?date=" + date;
+    }
+
+    auto t0 = high_resolution_clock::now();
+    LogApi("[API_Backfill] Fetching EOD data for date: " + (date.empty() ? "TODAY" : date));
+
+    readBuffer = WinHttpGetData(url);
+    if (readBuffer.empty()) {
+        LogApi("[API_Backfill] Error: Failed to retrieve data or empty response.");
+        return daily_summary;
+    }
+
+    auto t_fetch = high_resolution_clock::now();
+    try {
+        simdjson::ondemand::parser parser;
+        simdjson::padded_string ps(readBuffer);
+        auto doc = parser.iterate(ps);
+
+        // Data array berada langsung di bawah key "data"
+        simdjson::ondemand::array data_array = doc["data"].get_array();
+        size_t parsed_count = 0;
+
+        for (simdjson::ondemand::value item : data_array) {
+            try {
+                Candle c;
+                std::string symbol_code;
+                auto obj = item.get_object();
+                
+                double foreign_buy = 0.0;
+                double foreign_sell = 0.0;
+
+                for (auto field : obj) {
+                    std::string_view key = field.unescaped_key();
+                    auto val = field.value();
+
+                    if (key == "StockCode") {
+                        std::string_view sv = val.get_string().value();
+                        symbol_code.assign(sv.data(), sv.size());
+                    }
+                    else if (key == "Date") {
+                        // Format: "2025-10-10T00:00:00" -> extract "2025-10-10"
+                        std::string_view sv = val.get_string().value();
+                        size_t pos = sv.find('T');
+                        c.date.assign(sv.data(), pos); 
+                    }
+                    else if (key == "OpenPrice") {
+                        c.open = static_cast<double>(val.get_int64().value());
+                    }
+                    else if (key == "High") {
+                        c.high = static_cast<double>(val.get_int64().value());
+                    }
+                    else if (key == "Low") {
+                        c.low = static_cast<double>(val.get_int64().value());
+                    }
+                    else if (key == "Close") {
+                        c.close = static_cast<double>(val.get_int64().value());
+                    }
+                    else if (key == "Volume") {
+                        c.volume = static_cast<double>(val.get_int64().value());
+                    }
+                    else if (key == "Frequency") {
+                        // OpenInterest -> frequency
+                        c.frequency = static_cast<double>(val.get_int64().value());
+                    }
+                    else if (key == "Value") {
+                        // AuxData1 -> value
+                        c.value = static_cast<double>(val.get_int64().value());
+                    }
+                    else if (key == "ForeignBuy") {
+                        foreign_buy = static_cast<double>(val.get_int64().value());
+                    }
+                    else if (key == "ForeignSell") {
+                        foreign_sell = static_cast<double>(val.get_int64().value());
+                    }
+                }
+                
+                // AuxData2 -> netforeign
+                c.netforeign = foreign_buy - foreign_sell;
+
+                if (!symbol_code.empty()) {
+                    daily_summary[symbol_code] = c;
+                    parsed_count++;
+                }
+            } catch (const simdjson::simdjson_error& e) {
+                LogApi(std::string("[API_Backfill] Error parsing single item: ") + e.what());
+                continue;
+            }
+        }
+        
+        auto t_parse = high_resolution_clock::now();
+        duration<double, std::milli> fetch_ms = t_fetch - t0;
+        duration<double, std::milli> parse_ms = t_parse - t_fetch;
+        LogApi("[API_Backfill] Fetched in " + std::to_string(fetch_ms.count()) +
+            " ms, parsed " + std::to_string(parsed_count) +
+            " items in " + std::to_string(parse_ms.count()) +
+            " ms (total " + std::to_string((fetch_ms + parse_ms).count()) + " ms)");
+
+
+    } catch (const std::exception &e) {
+        LogApi(std::string("[API_simdjson] Exception: ") + e.what());
+        return daily_summary;
+    }
+
+    return daily_summary;
+}
+
+/*
+std::vector<SymbolInfo> fetchSymbolList() {
+    std::vector<SymbolInfo> symbol_list;
+    std::string readBuffer;
+
+    // URL API untuk daftar semua emiten
+    std::string url = host + "/api/amibroker/emitenlist";
+
+    auto t0 = high_resolution_clock::now();
+    LogApi("[API_Symbols] Fetching complete symbol list.");
+
+    readBuffer = WinHttpGetData(url);
+    if (readBuffer.empty()) {
+        LogApi("[API_Symbols] Error: Failed to retrieve data or empty response.");
+        return symbol_list;
+    }
+
+    auto t_fetch = high_resolution_clock::now();
+
+    try {
+        simdjson::ondemand::parser parser;
+        simdjson::padded_string ps(readBuffer);
+        auto doc = parser.iterate(ps);
+
+        // Data array berada langsung di bawah key "data"
+        simdjson::ondemand::array data_array = doc["data"].get_array();
+        
+        size_t parsed_count = 0;
+
+        for (simdjson::ondemand::value item : data_array) {
+            try {
+                SymbolInfo info;
+                auto obj = item.get_object();
+                
+                for (auto field : obj) {
+                    std::string_view key = field.unescaped_key();
+                    auto val = field.value();
+
+                    if (key == "code") {
+                        std::string_view sv = val.get_string().value();
+                        info.code.assign(sv.data(), sv.size());
+                    }
+                    else if (key == "name") {
+                        std::string_view sv = val.get_string().value();
+                        info.name.assign(sv.data(), sv.size());
+                    }
+                    else if (key == "sector") {
+                        std::string_view sv = val.get_string().value();
+                        info.sector.assign(sv.data(), sv.size());
+                    }
+                    else if (key == "industry") {
+                        std::string_view sv = val.get_string().value();
+                        info.industry.assign(sv.data(), sv.size());
+                    }
+                }
+                
+                if (!info.code.empty()) {
+                    symbol_list.push_back(std::move(info));
+                    parsed_count++;
+                }
+            } catch (const simdjson::simdjson_error& e) {
+                LogApi(std::string("[API_Symbols] Error parsing single item: ") + e.what());
+                continue;
+            }
+        }
+        
+        auto t_parse = high_resolution_clock::now();
+        duration<double, std::milli> fetch_ms = t_fetch - t0;
+        duration<double, std::milli> parse_ms = t_parse - t_fetch;
+        LogApi("[API_Symbols] Fetched in " + std::to_string(fetch_ms.count()) +
+            " ms, parsed " + std::to_string(parsed_count) +
+            " items in " + std::to_string(parse_ms.count()) +
+            " ms (total " + std::to_string((fetch_ms + parse_ms).count()) + " ms)");
+
+
+    } catch (const std::exception &e) {
+        LogApi(std::string("[API_simdjson] Exception: ") + e.what());
+        return symbol_list;
+    }
+
+    return symbol_list;
+}
+*/
+
+//versi Grok
+std::vector<SymbolInfo> fetchSymbolList() {
+    std::vector<SymbolInfo> symbol_list;
+    std::string readBuffer;
+
+    std::string url = host + "/api/amibroker/emitenlist";
+    LogApi("[API_Symbols] Fetching: " + url);
+    readBuffer = WinHttpGetData(url);
+    if (readBuffer.empty()) {
+        LogApi("[API_Symbols] Error: Empty response");
+        return symbol_list;
+    }
+    LogApi("[API_Symbols] Raw response: " + readBuffer.substr(0, 200));
+
+    // Cek JSON valid
+    try {
+        simdjson::ondemand::parser parser;
+        simdjson::padded_string ps(readBuffer);
+        auto doc = parser.iterate(ps);
+        if (doc.type() != simdjson::ondemand::json_type::object) {
+            LogApi("[API_Symbols] Error: Response is not a JSON object");
+            return symbol_list;
+        }
+
+        auto data = doc["data"];
+        if (data.type() != simdjson::ondemand::json_type::array) {
+            LogApi("[API_Symbols] Error: 'data' is not an array");
+            return symbol_list;
+        }
+
+        auto data_array = data.get_array();
+        size_t parsed_count = 0;
+        for (auto item : data_array) {
+            SymbolInfo info;
+            auto obj = item.get_object();
+
+            bool valid_item = true;
+            for (auto field : obj) {
+                std::string_view key = field.unescaped_key();
+                auto val = field.value();
+
+                // Cek tipe string
+                if (val.type() != simdjson::ondemand::json_type::string) {
+                    LogApi("[API_Symbols] Error: Non-string field '" + std::string(key) + "' in item");
+                    valid_item = false;
+                    break;
+                }
+
+                std::string_view sv = val.get_string().value();
+                if (key == "code" && !sv.empty() && sv.size() < MAX_SYMBOL_LEN) {
+                    info.code.assign(sv.data(), sv.size());
+                }
+                else if (key == "name" && !sv.empty() && sv.size() < 128) {
+                    info.name.assign(sv.data(), sv.size());
+                }
+            }
+
+            if (valid_item && !info.code.empty() && !info.name.empty()) {
+                // Sanitasi sederhana: cek ASCII printable
+                bool valid_chars = true;
+                for (char c : info.code + info.name) {
+                    if (c < 32 || c > 126) {
+                        valid_chars = false;
+                        break;
+                    }
+                }
+                if (valid_chars) {
+                    symbol_list.push_back(std::move(info));
+                    parsed_count++;
+                } else {
+                    LogApi("ERROR: Invalid chars in code: " + info.code + ", name: " + info.name);
+                }
+            } else {
+                LogApi("ERROR: Invalid item - code: " + info.code + ", name: " + info.name);
+            }
+        }
+        LogApi("[API_Symbols] Parsed " + std::to_string(parsed_count) + " symbols");
+    } catch (const std::exception& e) {
+        LogApi(std::string("[API_Symbols] Exception: ") + e.what());
+    }
+    return symbol_list;
 }

@@ -1,13 +1,46 @@
-#include "resource.h"
 #include <windows.h>
+#include "resource.h"
+
+LANGUAGE LANG_ENGLISH,SUBLANG_ENGLISH_US
 
 IDR_STATUS_MENU MENU
+{
+  POPUP "Status"
+  {
+    MENUITEM "Connect", ID_STATUS_CONNECT
+    MENUITEM "Disconnect", ID_STATUS_DISCONNECT
+    MENUITEM SEPARATOR
+    MENUITEM "EOD Daily Backfill...", ID_STATUS_EOD_BACKFILL
+    MENUITEM "Configure...", ID_STATUS_CONFIGURE
+  }
+}
+
+IDD_EOD_BACKFILL DIALOGEX DISCARDABLE 0, 0, 240, 80
+STYLE DS_SHELLFONT|WS_POPUP|DS_MODALFRAME|WS_CAPTION|WS_SYSMENU
+CAPTION "EOD Daily Backfill"
+FONT 8, "MS Shell Dlg", 400, 0, 1
+{
+  CONTROL "Select date:", -1, "Static", WS_GROUP, 7, 12, 43, 8
+  CONTROL "", IDC_DATEPICKER_EOD, "SysDateTimePick32", WS_TABSTOP, 55, 10, 100, 14
+  CONTROL "Fetch Data", IDC_FETCH_BUTTON, "Button", BS_DEFPUSHBUTTON|WS_TABSTOP, 163, 8, 70, 16
+  CONTROL "Ready.", IDC_STATUS_TEXT, "Static", SS_SUNKEN|WS_GROUP, 7, 35, 226, 25
+  CONTROL "Close", IDCANCEL, "Button", WS_TABSTOP, 184, 64, 50, 14
+}
+
+// --- Dialog untuk Configure Plugin (Retrieve Symbols) ---
+IDD_CONFIGURE_PLUGIN DIALOGEX 0, 0, 300, 150
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Valkyrie Datafeed Configuration"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    POPUP "Status"
-    BEGIN
-        MENUITEM "Connect",      ID_STATUS_CONNECT
-        MENUITEM "Disconnect",   ID_STATUS_DISCONNECT
-        MENUITEM SEPARATOR
-        MENUITEM "Configure...", ID_STATUS_CONFIGURE
-    END
+    LTEXT           "Symbol Management:",-1,7,10,150,8
+    // Tombol utama untuk Retrieve Symbols
+    DEFPUSHBUTTON   "Retrieve ALL Symbols (IPO/Update Metadata)",IDC_RETRIEVE_BUTTON,7,25,286,20
+    
+    // Status Text
+    LTEXT           "Ready to fetch. This may take up to 20 seconds.",IDC_STATUS_SYMBOL,7,55,286,40,SS_SUNKEN
+    
+    // Tombol Close standar
+    PUSHBUTTON      "Close",IDCANCEL,243,129,50,14
 END
+
