@@ -9,6 +9,7 @@
 /x64/
 /x86/
 /dist/
+/proto/
 /CMakeFiles/
 /CMakeCache.txt
 *.cmake
