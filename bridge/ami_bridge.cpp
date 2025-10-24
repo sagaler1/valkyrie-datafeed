@@ -1,152 +1,167 @@
 #include "ami_bridge.h"
 #include "data_store.h"
 #include "api_client.h"
-#include "ws_client.h"      // for WsClient access
+#include "ws_client.h"
 #include <windows.h>
 #include <algorithm>
 #include <vector>
 #include <chrono>
 #include <string>
-#include <memory>           // for std::unique_ptr
+#include <memory>
+#include <thread>
+#include <mutex>
+#include <map>
 
-// ---- Deklarasi Variabel Global dari plugin.cpp ----
 extern std::unique_ptr<WsClient> g_wsClient;
+extern HWND g_hAmiBrokerWnd;
 
-// ---- Logging
+static std::mutex g_fetchMtx;
+static std::map<std::string, bool> g_isFetching;
+static std::mutex g_dataStoreMtx;
+
 void LogBridge(const std::string& msg) {
     OutputDebugStringA(("[Bridge] " + msg + "\n").c_str());
 }
 
 inline void LogIfDebug(const std::string& msg) {
-#ifdef _DEBUG
-    LogBridge(msg);
-#endif
+    #ifdef _DEBUG
+        LogBridge(msg);
+    #endif
 }
 
-// ---- Helper untuk konversi dari format tanggal AmiBroker ke string YYYY-MM-DD
 std::string AmiDateToString(const PackedDate& pd) {
     char buffer[12];
     sprintf_s(buffer, sizeof(buffer), "%04d-%02d-%02d", pd.Year, pd.Month, pd.Day);
     return std::string(buffer);
 }
 
-// ---- FUNGSI UTAMA YANG DIPANGGIL AMIBROKER ----
+void fetchAndCache(std::string symbol, std::string from_date, std::string to_date, std::vector<Candle> existing_candles) {
+    LogIfDebug("Async fetch START for: " + symbol);
+    std::vector<Candle> new_candles = fetchHistorical(symbol, from_date, to_date);
+    LogIfDebug("Async fetch finished. Got " + std::to_string(new_candles.size()) + " bars.");
+
+    {
+        std::lock_guard<std::mutex> dslock(g_dataStoreMtx);
+
+        // Merge existing preload candles (from AmiBroker) if any
+        if (!existing_candles.empty()) {
+            gDataStore.mergeHistorical(symbol, existing_candles);
+        }
+
+        // Merge new candles fetched from API
+        if (!new_candles.empty()) {
+            gDataStore.mergeHistorical(symbol, new_candles);
+        }
+
+        // If both empty, still create empty cache entry to mark as checked
+        if (existing_candles.empty() && new_candles.empty()) {
+            gDataStore.setHistorical(symbol, {});
+        }
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(g_fetchMtx);
+        g_isFetching.erase(symbol);
+    }
+
+    if (g_hAmiBrokerWnd) PostMessage(g_hAmiBrokerWnd, WM_USER_STREAMING_UPDATE, 0, 0);
+    LogIfDebug("Async fetch COMPLETE for: " + symbol);
+}
+
 int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int nSize, struct Quotation* pQuotes)
 {
-    LogIfDebug("GetQuotesEx called for Ticker: " + std::string(pszTicker) +
-        ", Periodicity: " + std::to_string(nPeriodicity) +
-        ", nLastValid: " + std::to_string(nLastValid)
-    );
+    std::string symbol(pszTicker);
+    if (nPeriodicity != PERIODICITY_EOD) return nLastValid + 1;
 
-    if (nPeriodicity != PERIODICITY_EOD) {
-        LogIfDebug("Ignoring non-EOD request.");
+    std::vector<Candle> final_candles;
+    bool hasHist = false;
+    {
+        std::lock_guard<std::mutex> dslock(g_dataStoreMtx);
+        hasHist = gDataStore.hasHistorical(symbol);
+    }
+
+    if (hasHist) {
+        LogIfDebug("Cache HIT for " + symbol);
+        {
+            std::lock_guard<std::mutex> dslock(g_dataStoreMtx);
+            final_candles = gDataStore.getHistorical(symbol);
+        }
+
+        if (g_wsClient && g_wsClient->isConnected()) {
+            std::lock_guard<std::mutex> dslock(g_dataStoreMtx);
+            gDataStore.mergeLiveToHistorical(symbol);
+            final_candles = gDataStore.getHistorical(symbol);
+        }
+    }
+    else {
+        LogIfDebug("Cache MISS for " + symbol);
+
+        bool is_already_fetching = false;
+        {
+            std::lock_guard<std::mutex> lock(g_fetchMtx);
+            is_already_fetching = (g_isFetching.find(symbol) != g_isFetching.end());
+        }
+
+        if (!is_already_fetching) {
+            {
+                std::lock_guard<std::mutex> lock(g_fetchMtx);
+                g_isFetching[symbol] = true;
+            }
+
+            // --- PRELOAD from AmiBroker ---
+            std::vector<Candle> preload;
+            if (nLastValid >= 0) {
+                preload.reserve(nLastValid + 1);
+                for (int i = 0; i <= nLastValid; ++i) {
+                    Candle c;
+                    c.date = AmiDateToString(pQuotes[i].DateTime.PackDate);
+                    c.open = pQuotes[i].Open;
+                    c.high = pQuotes[i].High;
+                    c.low = pQuotes[i].Low;
+                    c.close = pQuotes[i].Price;
+                    c.volume = pQuotes[i].Volume;
+                    c.frequency = pQuotes[i].OpenInterest;
+                    c.value = pQuotes[i].AuxData1;
+                    c.netforeign = pQuotes[i].AuxData2;
+                    preload.push_back(c);
+                }
+                {
+                    std::lock_guard<std::mutex> dslock(g_dataStoreMtx);
+                    gDataStore.setHistorical(symbol, preload);
+                }
+                LogIfDebug("Preloaded cache for " + symbol + " with " + std::to_string(preload.size()) + " bars.");
+            }
+
+            // Tentukan range tanggal fetch
+            std::string from_date, to_date;
+            auto now = std::chrono::system_clock::now();
+            to_date = timePointToString(now);
+
+            if (nLastValid >= 0) {
+                const auto& lastQuoteDate = pQuotes[nLastValid].DateTime.PackDate;
+                std::tm last_tm = {};
+                last_tm.tm_year = lastQuoteDate.Year - 1900;
+                last_tm.tm_mon  = lastQuoteDate.Month - 1;
+                last_tm.tm_mday = lastQuoteDate.Day;
+                std::time_t last_tt = std::mktime(&last_tm);
+                auto next_day_tp = std::chrono::system_clock::from_time_t(last_tt) + std::chrono::hours(24);
+                from_date = timePointToString(next_day_tp);
+            } else {
+                int lookback_days = 365 * 2;
+                from_date = timePointToString(now - std::chrono::hours(24 * lookback_days));
+            }
+
+            std::thread(fetchAndCache, symbol, from_date, to_date, std::move(preload)).detach();
+        }
+
+        LogIfDebug("Returning nLastValid+1 temporarily while async fetch runs.");
         return nLastValid + 1;
     }
 
-    std::string symbol(pszTicker);
-    std::vector<Candle> final_candles;
-
-    // =================================================================================
-    // ---- PEMISAHAN LOGIKA: REAL-TIME vs BACKFILL ----
-    // =================================================================================
-
-    if (g_wsClient && g_wsClient->isConnected())
-    {
-        // ---- JALUR 1: REAL-TIME (WebSocket Aktif)
-        LogIfDebug("WebSocket is ACTIVE. Using in-memory cache.");
-        
-        // ---- FIX: SINKRONISASI SATU KALI JIKA CACHE KOSONG
-        if (!gDataStore.hasHistorical(symbol) && nLastValid >= 0) {
-            LogIfDebug("Cache is empty for " + symbol + ". Syncing from AmiBroker's data (pQuotes)...");
-            std::vector<Candle> existing_candles;
-            for (int i = 0; i <= nLastValid; ++i) {
-                Candle c;
-                c.date = AmiDateToString(pQuotes[i].DateTime.PackDate);
-                c.open = pQuotes[i].Open;
-                c.high = pQuotes[i].High;
-                c.low = pQuotes[i].Low;
-                c.close = pQuotes[i].Price;
-                c.volume = pQuotes[i].Volume;
-                c.frequency = pQuotes[i].OpenInterest;
-                c.value = pQuotes[i].AuxData1;
-                c.netforeign = pQuotes[i].AuxData2;
-                existing_candles.push_back(c);
-            }
-            gDataStore.mergeHistorical(symbol, existing_candles);
-            LogIfDebug("Sync complete. Cache now has " + std::to_string(existing_candles.size()) + " bars.");
-        }
-        
-        // ---- Lanjutkan dengan logika real-time seperti biasa
-        final_candles = gDataStore.getHistorical(symbol);
-        if (!final_candles.empty()) {
-            gDataStore.mergeLiveToHistorical(symbol);
-            final_candles = gDataStore.getHistorical(symbol); // Ambil lagi versi terupdate
-        }
-    }
-    else
-    {
-        // ---- JALUR 2: BACKFILL / FALLBACK (WebSocket Mati)
-        LogIfDebug("WebSocket is INACTIVE. Using HTTP backfill logic.");
-
-        std::string from_date, to_date;
-        auto now = std::chrono::system_clock::now();
-        to_date = timePointToString(now);
-
-        if (nLastValid >= 0) {
-            const auto& lastQuoteDate = pQuotes[nLastValid].DateTime.PackDate;
-            std::string last_date_str = AmiDateToString(lastQuoteDate);
-            std::tm last_tm = {};
-            sscanf_s(last_date_str.c_str(), "%d-%d-%d", &last_tm.tm_year, &last_tm.tm_mon, &last_tm.tm_mday);
-            last_tm.tm_year -= 1900; last_tm.tm_mon -= 1;
-            auto last_tp = std::chrono::system_clock::from_time_t(std::mktime(&last_tm));
-            from_date = timePointToString(last_tp + std::chrono::hours(24));
-            
-            if (from_date > to_date) {
-                 LogIfDebug("Data is up-to-date. No fetch needed.");
-                 return nLastValid + 1;
-            }
-            LogIfDebug("Data exists. Fetching delta from: " + from_date);
-        } else {
-            int initial_lookback_days = 365 * 1; // 1 Tahun saja
-            from_date = timePointToString(now - std::chrono::hours(24 * initial_lookback_days));
-            LogIfDebug("No data. Performing initial fetch from: " + from_date);
-        }
-
-        std::vector<Candle> new_candles = fetchHistorical(symbol, from_date, to_date);
-        LogIfDebug("API call finished. Received " + std::to_string(new_candles.size()) + " new bars.");
-        
-        std::vector<Candle> combined_candles;
-        for (int i = 0; i <= nLastValid; ++i) {
-            Candle c;
-            c.date = AmiDateToString(pQuotes[i].DateTime.PackDate); 
-            c.open = pQuotes[i].Open; 
-            c.high = pQuotes[i].High; 
-            c.low = pQuotes[i].Low; 
-            c.close = pQuotes[i].Price; 
-            c.volume = pQuotes[i].Volume;
-            c.frequency = pQuotes[i].OpenInterest;
-            c.value = pQuotes[i].AuxData1;
-            c.netforeign = pQuotes[i].AuxData2;
-            combined_candles.push_back(c);
-        }
-        if (!new_candles.empty()) {
-            combined_candles.insert(combined_candles.end(), new_candles.begin(), new_candles.end());
-        }
-        
-        gDataStore.setHistorical(symbol, {});
-        gDataStore.mergeHistorical(symbol, combined_candles);
-        final_candles = gDataStore.getHistorical(symbol);
-    }
-
-    // ---- BAGIAN AKHIR: MENYALIN DATA KE AMIBROKER ----
-    if (final_candles.empty()) {
-        LogIfDebug("No data available for symbol after processing. Returning 0.");
-        return 0;
-    }
+    if (final_candles.empty()) return 0;
 
     size_t numToCopy = std::min<size_t>(final_candles.size(), (nSize > 0) ? static_cast<size_t>(nSize) : 0);
     size_t startIndex = (final_candles.size() > numToCopy) ? (final_candles.size() - numToCopy) : 0;
-    LogIfDebug("Copying latest " + std::to_string(numToCopy) + " bars to AmiBroker.");
 
     for (size_t i = 0; i < numToCopy; ++i) {
         const auto& candle = final_candles[startIndex + i];
@@ -154,12 +169,15 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
         qt.DateTime.Date = 0;
         int year, month, day;
         if (sscanf_s(candle.date.c_str(), "%d-%d-%d", &year, &month, &day) == 3) {
-            qt.DateTime.PackDate.Year = year; qt.DateTime.PackDate.Month = month; qt.DateTime.PackDate.Day = day;
-            qt.DateTime.PackDate.Minute = DATE_EOD_MINUTES; qt.DateTime.PackDate.Hour = DATE_EOD_HOURS;
-        } else { continue; }
-        qt.Price = static_cast<float>(candle.close); 
+            qt.DateTime.PackDate.Year = year;
+            qt.DateTime.PackDate.Month = month;
+            qt.DateTime.PackDate.Day = day;
+            qt.DateTime.PackDate.Minute = DATE_EOD_MINUTES;
+            qt.DateTime.PackDate.Hour = DATE_EOD_HOURS;
+        }
+        qt.Price = static_cast<float>(candle.close);
         qt.Open = static_cast<float>(candle.open);
-        qt.High = static_cast<float>(candle.high); 
+        qt.High = static_cast<float>(candle.high);
         qt.Low = static_cast<float>(candle.low);
         qt.Volume = static_cast<float>(candle.volume);
         qt.OpenInterest = static_cast<float>(candle.frequency);
@@ -167,6 +185,5 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
         qt.AuxData2 = static_cast<float>(candle.netforeign);
     }
 
-    LogIfDebug("Finished. Returning final count: " + std::to_string(numToCopy));
     return static_cast<int>(numToCopy);
 }

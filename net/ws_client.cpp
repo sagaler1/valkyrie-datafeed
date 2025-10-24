@@ -94,7 +94,7 @@ void WsClient::run() {
             m_pingThread = std::thread(&WsClient::pingLoop, this);
 
         } else if (msg->type == ix::WebSocketMessageType::Message) {
-            LogWS(std::string("[WS] ==> EVENT: Message. Size: " + std::to_string(msg->str.size()) + " bytes"));
+            // LogWS(std::string("[WS] ==> EVENT: Message. Size: " + std::to_string(msg->str.size()) + " bytes"));
             if (!isSubscribed) {
                 // ---- nanopb parser for PongReceive ----
                 // 1. Buat input stream dari data biner

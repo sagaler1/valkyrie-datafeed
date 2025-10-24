@@ -138,89 +138,88 @@ struct Quotation {
 
 #define MAX_SYMBOL_LEN 48
 struct StockInfo {		
-                        char    ShortName[MAX_SYMBOL_LEN];
-						char	AliasName[MAX_SYMBOL_LEN];
-						char	WebID[MAX_SYMBOL_LEN];
-                        char    FullName[128];
-                        char    Address[128];
-						char	Country[64];
-						char	Currency[4];
-						int		DataSource;
-                        int     DataLocalMode;
-						int		MarketID;
-						int		GroupID;
-						int		IndustryID;
-						int		GICS;
-                        int     Flags;     
-                        int     MoreFlags;
-						float	MarginDeposit;
-						float	PointValue;
-						float	RoundLotSize;
-						float	TickSize;
-						int		Decimals;
-						short	LastSplitFactor[ 2 ];
-						DATE_TIME_INT LastSplitDate;
-                        DATE_TIME_INT DividendPayDate;
-                        DATE_TIME_INT ExDividendDate;
-						float	SharesFloat;
-						float	SharesOut;
-						float   DividendPerShare;
-						float   BookValuePerShare;
-						float   PEGRatio;
-						float   ProfitMargin;	
-						float	OperatingMargin;    
-						float	OneYearTargetPrice;
-						float	ReturnOnAssets;
-						float	ReturnOnEquity;
-						float	QtrlyRevenueGrowth;
-						float	GrossProfitPerShare;
-						float	SalesPerShare;
-						float	EBITDAPerShare;
-						float	QtrlyEarningsGrowth;
-						float	InsiderHoldPercent;
-						float	InstitutionHoldPercent;
-						float	SharesShort;
-						float	SharesShortPrevMonth;
-						float	ForwardEPS;
-						float	EPS;
-						float	EPSEstCurrentYear;
-						float	EPSEstNextYear;
-						float	EPSEstNextQuarter;
-						float   ForwardDividendPerShare;            
-						float	Beta;	
-						float	OperatingCashFlow;
-						float	LeveredFreeCashFlow;
-						float	ReservedInternal[ 28 ];
-						float	UserData[ 100 ];
+	char  ShortName[MAX_SYMBOL_LEN];
+	char	AliasName[MAX_SYMBOL_LEN];
+	char	WebID[MAX_SYMBOL_LEN];
+	char  FullName[128];
+	char  Address[128];
+	char	Country[64];
+	char	Currency[4];
+	int		DataSource;
+	int   DataLocalMode;
+	int		MarketID;
+	int		GroupID;
+	int		IndustryID;
+	int		GICS;
+	int   Flags;     
+	int   MoreFlags;
+	float	MarginDeposit;
+	float	PointValue;
+	float	RoundLotSize;
+	float	TickSize;
+	int		Decimals;
+	short	LastSplitFactor[ 2 ];
+	DATE_TIME_INT		LastSplitDate;
+	DATE_TIME_INT 	DividendPayDate;
+	DATE_TIME_INT 	ExDividendDate;
+	float	SharesFloat;
+	float	SharesOut;
+	float DividendPerShare;
+	float BookValuePerShare;
+	float PEGRatio;
+	float ProfitMargin;	
+	float	OperatingMargin;    
+	float	OneYearTargetPrice;
+	float	ReturnOnAssets;
+	float	ReturnOnEquity;
+	float	QtrlyRevenueGrowth;
+	float	GrossProfitPerShare;
+	float	SalesPerShare;
+	float	EBITDAPerShare;
+	float	QtrlyEarningsGrowth;
+	float	InsiderHoldPercent;
+	float	InstitutionHoldPercent;
+	float	SharesShort;
+	float	SharesShortPrevMonth;
+	float	ForwardEPS;
+	float	EPS;
+	float	EPSEstCurrentYear;
+	float	EPSEstNextYear;
+	float	EPSEstNextQuarter;
+	float ForwardDividendPerShare;            
+	float	Beta;	
+	float	OperatingCashFlow;
+	float	LeveredFreeCashFlow;
+	float	ReservedInternal[ 28 ];
+	float	UserData[ 100 ];
 };
 
 
 enum { CATEGORY_MARKET, CATEGORY_GROUP, CATEGORY_SECTOR, CATEGORY_INDUSTRY, CATEGORY_WATCHLIST };
 
-struct InfoSite
-			{
-				int			nStructSize;
-				int			(*GetStockQty)( void );
-				int			(*SetCategoryName)( int nCategory, int nItem, const char *pszName );
-				const char *(*GetCategoryName)( int nCategory, int nItem );
-			    int			(*SetIndustrySector) ( int nIndustry, int nSector );
-				int			(*GetIndustrySector) ( int nIndustry );
-				struct StockInfo * (*AddStockNew)( const char *pszTicker );
-			};
+struct InfoSite {
+	int			nStructSize;
+	int			(*GetStockQty)( void );
+	int			(*SetCategoryName)( int nCategory, int nItem, const char *pszName );
+	const char *(*GetCategoryName)( int nCategory, int nItem );
+	int			(*SetIndustrySector) ( int nIndustry, int nSector );
+	int			(*GetIndustrySector) ( int nIndustry );
+	struct StockInfo * (*AddStockNew)( const char *pszTicker );
+};
 
-#define RI_LAST			(1L<<0)
-#define RI_OPEN			(1L<<1)
+#define RI_LAST				(1L<<0)
+#define RI_OPEN				(1L<<1)
 #define RI_HIGHLOW		(1L<<2)
 #define RI_TRADEVOL		(1L<<3)
 #define RI_TOTALVOL		(1L<<4)
 #define RI_OPENINT		(1L<<5)
 #define RI_PREVCHANGE	(1L<<6)
-#define RI_BID			(1L<<7)
-#define RI_ASK			(1L<<8)
-#define RI_EPS			(1L<<9)
+#define RI_BID				(1L<<7)
+#define RI_ASK				(1L<<8)
+#define RI_EPS				(1L<<9)
 #define RI_DIVIDEND		(1L<<10)
-#define RI_SHARES		(1L<<11)
-#define RI_52WEEK		(1L<<12)
+#define RI_SHARES			(1L<<11)
+#define RI_52WEEK			(1L<<12)
 #define RI_DATEUPDATE	(1L<<13)
 #define RI_DATECHANGE	(1L<<14)
 

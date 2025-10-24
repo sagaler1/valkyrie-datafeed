@@ -1,5 +1,5 @@
 #include "data_store.h"
-#include <algorithm>                    // Diperlukan untuk std::max/min
+#include <algorithm>
 #include <map>
 #include <chrono>
 #include <sstream>
@@ -17,31 +17,25 @@ void DataStore::mergeHistorical(const std::string& symbol, const std::vector<Can
         return; // Tidak ada yang perlu di-merge
     }
 
-    // Gunakan std::map untuk secara otomatis menangani data unik berdasarkan tanggal
-    // dan juga mengurutkannya secara otomatis.
+    // Gunakan std::map untuk menjaga urutan tanggal dan update otomatis
     std::map<std::string, Candle> merged_map;
 
-    // 1. Masukkan semua data lama (yang ada di cache) ke dalam map
-    if (m_historicalData.count(symbol)) {
-        for (const auto& old_candle : m_historicalData.at(symbol)) {
-            merged_map[old_candle.date] = old_candle;
-        }
+    // Selalu ambil referensi ke vector (akan buat entry kosong bila belum ada)
+    auto& existingVec = m_historicalData[symbol];
+    for (const auto& old_candle : existingVec) {
+        merged_map[old_candle.date] = old_candle;
     }
 
-    // 2. Masukkan semua data baru ke dalam map.
-    // Jika ada tanggal yang sama, data lama akan otomatis ditimpa (di-update).
     for (const auto& new_candle : new_candles) {
         merged_map[new_candle.date] = new_candle;
     }
 
-    // 3. Konversi kembali map yang sudah ter-merge dan terurut ke dalam vector
     std::vector<Candle> final_candles;
     final_candles.reserve(merged_map.size());
     for (const auto& pair : merged_map) {
         final_candles.push_back(pair.second);
     }
 
-    // 4. Simpan hasil akhirnya kembali ke cache utama kita
     m_historicalData[symbol] = final_candles;
 }
 
@@ -59,16 +53,15 @@ bool DataStore::hasHistorical(const std::string& symbol) {
 }
 
 void DataStore::updateLiveQuote(const StockFeed& feed) {
-    // Parameter 'feed' sekarang adalah struct Nanopb
     if (!feed.has_stock_data) return;
-    const auto& s = feed.stock_data;      // 's' adalah referensi ke struct StockData
+    const auto& s = feed.stock_data;
     std::string symbol = s.symbol;
 
     std::lock_guard<std::mutex> lock(m_mtx);
-    LiveQuote& q = m_liveQuotes[symbol];    // Get reference to update
-    
+    LiveQuote& q = m_liveQuotes[symbol];
+
     q.symbol = symbol;
-    q.lastprice = s.close;                  // Di proto baru, lastprice adalah 'close'
+    q.lastprice = s.close;
     q.previous = s.previous;
     q.open = s.open;
     q.high = s.high;
@@ -79,14 +72,11 @@ void DataStore::updateLiveQuote(const StockFeed& feed) {
     q.timestamp = s.date;
     q.netforeign = s.foreignbuy - s.foreignsell;
 
-    // Cek flag 'has_change' untuk sub-pesan PriceChange
     if (s.has_change) {
         q.changeValue = s.change.value;
         q.changePercent = s.change.percentage;
     }
 
-    // Proto baru tidak punya field 'previous'. Kita bisa hitung manual.
-    // Previous = Close - Change
     q.previous = s.close - q.changeValue;
 }
 
@@ -100,33 +90,24 @@ LiveQuote DataStore::getLiveQuote(const std::string& symbol) {
 
 void DataStore::mergeLiveToHistorical(const std::string& symbol) {
     std::lock_guard<std::mutex> lock(m_mtx);
-    if (!m_historicalData.count(symbol) || !m_liveQuotes.count(symbol)) {
-        return;         // Keluar jika alah satu data tidak ada
+
+    if (!m_liveQuotes.count(symbol)) {
+        return;
     }
 
-    auto& candles = m_historicalData.at(symbol);
+    auto& candles = m_historicalData[symbol]; // otomatis buat entry kosong
     auto& live = m_liveQuotes.at(symbol);
 
-    if (candles.empty()) {
-        return;         // Keluar jika tidak ada data historis sama sekali
-    }
-
-    // ---- NEW LOGIC: SADAR TANGGAL ----
-    
-    // 1. Dapatkan tanggal hari ini YYYY-MM-DD
     auto now = std::chrono::system_clock::now();
     auto in_time_t = std::chrono::system_clock::to_time_t(now);
     std::stringstream ss;
     std::tm buf;
-    localtime_s(&buf, &in_time_t);      // localtime_s is thread-safe on Windows
+    localtime_s(&buf, &in_time_t);
     ss << std::put_time(&buf, "%Y-%m-%d");
     std::string today_date_str = ss.str();
 
-    Candle& lastCandle = candles.back();
-
-    // 2. bandingkan tanggal bar terakhir dengan tanggal hari ini
-    if (lastCandle.date == today_date_str) {
-        // KASUS A. Tick untuk hari yang sama. Cukup UPDATE bar terakhir.
+    if (!candles.empty() && candles.back().date == today_date_str) {
+        Candle& lastCandle = candles.back();
         lastCandle.close = live.lastprice;
         lastCandle.high = std::max(lastCandle.high, live.high);
         lastCandle.low = std::min(lastCandle.low, live.low);
@@ -135,10 +116,9 @@ void DataStore::mergeLiveToHistorical(const std::string& symbol) {
         lastCandle.frequency = live.frequency;
         lastCandle.netforeign = live.netforeign;
     } else {
-        // KASUS B: Ini tick pertama untuk HARI BARU. Buat bar BARU.
         Candle newCandle;
         newCandle.date = today_date_str;
-        newCandle.open = live.open; // Open hari ini adalah open dari live feed
+        newCandle.open = live.open;
         newCandle.high = live.high;
         newCandle.low = live.low;
         newCandle.close = live.lastprice;
@@ -151,33 +131,6 @@ void DataStore::mergeLiveToHistorical(const std::string& symbol) {
 }
 
 void DataStore::updateEodBar(const std::string& symbol, const Candle& candle) {
-    std::lock_guard<std::mutex> lock(m_mtx);
-
-    // KUNCI UTAMA: Hanya proses jika cache untuk simbol ini SUDAH ADA.
-    if (m_historicalData.count(symbol) == 0) {
-        // Jika cache belum ada, jangan lakukan apa-apa.
-        // Biarkan GetQuotesEx yang menanganinya saat simbol ini dibuka.
-        return;
-    }
-
-    auto& candles = m_historicalData.at(symbol);
-    bool found = false;
-
-    // Cari bar dengan tanggal yang sama untuk di-update
-    for (auto& existing_candle : candles) {
-        if (existing_candle.date == candle.date) {
-            existing_candle = candle; // Timpa dengan data baru
-            found = true;
-            break;
-        }
-    }
-
-    // Jika tidak ada bar dengan tanggal yang sama (kasus data baru), tambahkan di akhir
-    if (!found) {
-        candles.push_back(candle);
-        // Pastikan data tetap terurut berdasarkan tanggal
-        std::sort(candles.begin(), candles.end(), [](const Candle& a, const Candle& b) {
-            return a.date < b.date;
-        });
-    }
+    // Versi baru: lebih aman dan idempotent
+    mergeHistorical(symbol, { candle });
 }

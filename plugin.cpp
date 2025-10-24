@@ -12,7 +12,7 @@
 #include <windows.h>
 #include <CommCtrl.h>
 
-// --- Global Variables ---
+// ---- Global Variables ----
 std::unique_ptr<WsClient> g_wsClient;
 DataStore gDataStore;
 HWND g_hAmiBrokerWnd = NULL;
@@ -20,8 +20,7 @@ HMODULE g_hDllModule = NULL;                // To store our DLL handle
 
 std::atomic<int> g_nStatus = STATE_IDLE;
 
-
-// --- DllMain Entry Point ---
+// ---- DllMain Entry Point ----
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
 {
     switch (ul_reason_for_call)
@@ -37,12 +36,12 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
     return TRUE;
 }
 
-// --- Main Plugin Functions ---
+// ---- Main Plugin Functions ----
 PLUGINAPI int GetPluginInfo(struct PluginInfo* pInfo) {
     pInfo->nStructSize = sizeof(PluginInfo);
     pInfo->nType = PLUGIN_TYPE_DATA;
     pInfo->nVersion = 100; // v0.1.0
-    pInfo->nIDCode = PIDCODE('K', 'B', 'B', ' ');
+    pInfo->nIDCode = PIDCODE('V', 'D', 'T', 'F');
     strcpy_s(pInfo->szName, "Valkyrie Datafeed");
     strcpy_s(pInfo->szVendor, "Dhani");
     pInfo->nMinAmiVersion = 52700; // Requires AmiBroker 5.27+
@@ -50,14 +49,11 @@ PLUGINAPI int GetPluginInfo(struct PluginInfo* pInfo) {
 }
 
 PLUGINAPI int Init(void) {
-    // ---- TAMBAHKAN BLOK INISIALISASI INI ----
-    // Inisialisasi Common Controls untuk mengaktifkan kontrol modern
-    // seperti Date Picker.
+    // ---- Common Controls initialization 
     INITCOMMONCONTROLSEX icex;
     icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
-    icex.dwICC = ICC_DATE_CLASSES; // Kita hanya butuh kelas untuk Date/Time controls
+    icex.dwICC = ICC_DATE_CLASSES;                  // Kita hanya butuh kelas untuk Date/Time controls
     InitCommonControlsEx(&icex);
-    // -----------------------------------------
 
     g_wsClient = std::make_unique<WsClient>();
     g_nStatus = STATE_IDLE;
@@ -219,21 +215,19 @@ PLUGINAPI int Notify(struct PluginNotification* pn) {
 
 PLUGINAPI int Configure( LPCTSTR pszPath, struct InfoSite *pSite )
 {
-    // Pastikan kita menggunakan Dll handle kita saat membuka dialog
+    // Ensure that we use our DLL handle when opening the dialog
     extern HMODULE g_hDllModule; 
 
-    // --- FIX KRUSIAL: CEK nStructSize ---
-    // sizeof( struct InfoSite ) akan mengambil ukuran struct InfoSite di compile time plugin
+    // ---- Cek nStructSize ----
     if (pSite && pSite->nStructSize >= sizeof( struct InfoSite ) )
     {
-        // VERSI MODERN (AddStockNew) didukung!
-        CConfigureDlg oDlg(pSite); // Berikan pointer InfoSite ke dialog
-        oDlg.DoModal(g_hAmiBrokerWnd); // Tampilkan dialog
+        CConfigureDlg oDlg(pSite);          // Berikan pointer InfoSite ke dialog
+        oDlg.DoModal(g_hAmiBrokerWnd);      // Tampilkan dialog
     }
     else
     {
-        // Versi lama atau ukuran tidak sesuai. 
-        // JANGAN PANGGIL AddStockNew. Tampilkan pesan peringatan.
+        // Old version
+        // DO NOT CALL AddStockNew(). Display a warning message.
         MessageBoxA(g_hAmiBrokerWnd, 
                     "Plugin requires a newer version of AmiBroker or InfoSite structure size is too small. Update AmiBroker to v5.27+.", 
                     "Valkyrie Datafeed Error", MB_ICONERROR);
@@ -242,7 +236,7 @@ PLUGINAPI int Configure( LPCTSTR pszPath, struct InfoSite *pSite )
     return 1;
 }
 
-// ---- GetQuotesEx() function is a basic function that all data plugins must export and it is called each time AmiBroker wants to get new quotes.
+// ---- GetQuotesEx() function is a basic function that all data plugins must export and it is called each time AmiBroker wants to get new quotes ----
 PLUGINAPI int GetQuotesEx(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int nSize, struct Quotation* pQuotes, GQEContext* pContext)
 {
     return GetQuotesEx_Bridge(pszTicker, nPeriodicity, nLastValid, nSize, pQuotes);
