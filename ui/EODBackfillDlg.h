@@ -3,13 +3,12 @@
 
 #include <windows.h>
 
-class CEODBackfillDlg
-{
-public:
+class CEODBackfillDlg {
+  public:
     // Fungsi utama untuk menampilkan dialog
     void DoModal(HWND hParent);
 
-private:
+  private:
     // Prosedur dialog statis yang dipanggil oleh Windows
     static INT_PTR CALLBACK DialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
 

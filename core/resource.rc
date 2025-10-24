@@ -44,3 +44,40 @@ BEGIN
     PUSHBUTTON      "Close",IDCANCEL,243,129,50,14
 END
 
+// --- Version Information ---
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION    1,0,0,1  // Major, minor, patch, build
+ PRODUCTVERSION 1,0,0,1
+ FILEFLAGSMASK  0x3fL    // Biasanya 0x3fL (VS_FFI_FILEFLAGSMASK)
+#ifdef _DEBUG
+ FILEFLAGS      0x1L     // VS_FF_DEBUG
+#else
+ FILEFLAGS      0x0L     // Release build
+#endif
+ FILEOS         0x40004L // VOS_NT_WINDOWS32 (wajib)
+ FILETYPE       0x2L     // VFT_DLL (wajib)
+ FILESUBTYPE    0x0L     // VFT2_UNKNOWN (biasanya 0)
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        // Block bahasa US English, code page Windows ANSI (1252)
+        // 0409 = US English, 04E4 = 1252 (ANSI Latin 1)
+        BLOCK "040904E4" 
+        BEGIN
+            VALUE "CompanyName",      "Dhani\0" 
+            VALUE "FileDescription",  "Amibroker Plugin for IDX Market\0" 
+            VALUE "FileVersion",      "1.0.0.1\0" 
+            VALUE "InternalName",     "Valkyrie.dll\0"
+            VALUE "LegalCopyright",   "Copyright (C) 2025 Dhani\0"
+            VALUE "OriginalFilename", "Valkyrie.dll\0"
+            VALUE "ProductName",      "Valkyrie Datafeed\0"
+            VALUE "ProductVersion",   "1.0.0.1\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        // Info translasi (cocokkan dengan block StringFileInfo)
+        VALUE "Translation", 0x409, 1252 
+    END
+END
+

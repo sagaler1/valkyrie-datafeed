@@ -10,29 +10,29 @@
 
 class DataStore {
 private:
-    std::map<std::string, std::vector<Candle>> m_historicalData;
-    std::map<std::string, LiveQuote> m_liveQuotes;
-    std::mutex m_mtx;
+  std::map<std::string, std::vector<Candle>> m_historicalData;
+  std::map<std::string, LiveQuote> m_liveQuotes;
+  std::mutex m_mtx;
 
 public:
-    // Untuk data historis dari API
-    void setHistorical(const std::string& symbol, const std::vector<Candle>& candles);
+  // Untuk data historis dari API
+  void setHistorical(const std::string& symbol, const std::vector<Candle>& candles);
 
-    // NEW: Fungsi cerdas untuk menggabungkan data baru dengan cache yang ada
-    void mergeHistorical(const std::string& symbol, const std::vector<Candle>& new_candles);
+  // NEW: Fungsi cerdas untuk menggabungkan data baru dengan cache yang ada
+  void mergeHistorical(const std::string& symbol, const std::vector<Candle>& new_candles);
 
-    std::vector<Candle> getHistorical(const std::string& symbol);
-    bool hasHistorical(const std::string& symbol);
+  std::vector<Candle> getHistorical(const std::string& symbol);
+  bool hasHistorical(const std::string& symbol);
 
-    // Untuk data live dari WebSocket
-    void updateLiveQuote(const StockFeed& feed);
-    LiveQuote getLiveQuote(const std::string& symbol);
+  // Untuk data live dari WebSocket
+  void updateLiveQuote(const StockFeed& feed);
+  LiveQuote getLiveQuote(const std::string& symbol);
 
-    // Untuk menggabungkan data live ke bar historis terakhir
-    void mergeLiveToHistorical(const std::string& symbol);
+  // Untuk menggabungkan data live ke bar historis terakhir
+  void mergeLiveToHistorical(const std::string& symbol);
 
-    // NEW: Fungsi khusus untuk mengupdate satu bar EOD di cache yang sudah ada.
-    void updateEodBar(const std::string& symbol, const Candle& candle);
+  // NEW: Fungsi khusus untuk mengupdate satu bar EOD di cache yang sudah ada.
+  void updateEodBar(const std::string& symbol, const Candle& candle);
 };
 
 extern DataStore gDataStore;

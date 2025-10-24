@@ -8,13 +8,12 @@
 #include "types.h"        // For SymbolInfo
 #include <vector>
 
-class CConfigureDlg
-{
+class CConfigureDlg {
   public:
-    // Receives InfoSite pointer from AmiBroker on initialization
+    // Menerima pointer InfoSite dari AmiBroker saat initialization
     CConfigureDlg(struct InfoSite* pSite);
     
-    // The main function for displaying dialogs
+    // Fungsi utama untuk menampilkan dialog
     void DoModal(HWND hParent);
 
   private:
