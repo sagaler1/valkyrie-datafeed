@@ -11,6 +11,7 @@
 #include <atomic>
 #include <windows.h>
 #include <CommCtrl.h>
+#include <thread>
 
 // ---- Global Variables ----
 std::unique_ptr<WsClient> g_wsClient;
@@ -19,6 +20,10 @@ HWND g_hAmiBrokerWnd = NULL;
 HMODULE g_hDllModule = NULL;                // To store our DLL handle
 
 std::atomic<int> g_nStatus = STATE_IDLE;
+
+// ---- Worker Thread ----
+std::thread g_workerThread;
+std::atomic<bool> g_bWorkerThreadRun = false;     // background thread
 
 // ---- DllMain Entry Point ----
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
@@ -59,6 +64,15 @@ PLUGINAPI int Init(void) {
 }
 
 PLUGINAPI int Release(void) {
+  // Stop worker thread
+  if (g_bWorkerThreadRun) {
+    g_bWorkerThreadRun = false;
+    if (g_workerThread.joinable()) {
+      g_workerThread.join();
+    }
+    OutputDebugStringA("[Plugin] Fetcher worker thread stopped.");
+  }
+
   if (g_wsClient) {
       g_wsClient->stop();
   }
@@ -129,12 +143,29 @@ PLUGINAPI int Notify(struct PluginNotification* pn) {
     if (g_wsClient) {
       g_wsClient->setAmiBrokerWindow(g_hAmiBrokerWnd, &g_nStatus);
     }
+
+    // ---- START WORKER THREAD ----
+    if (!g_bWorkerThreadRun) {
+      g_bWorkerThreadRun = true;
+      g_workerThread = std::thread(ProcessFetchQueue);  // Fungsi ini ada di ami_bridge
+      OutputDebugStringA("[Plugin] Fetcher worker thread started.");
+    }
   }
 
   if (pn->nReason == REASON_DATABASE_UNLOADED) {
     if (g_wsClient) {
       g_wsClient->stop();
     }
+
+    // ---- STOP WORKER THREAD ----
+    if (g_bWorkerThreadRun) {
+      g_bWorkerThreadRun = false;
+      if (g_workerThread.joinable()) {
+        g_workerThread.join();
+      }
+      OutputDebugStringA("[Plugin] Fetcher worker thread stopped.");
+    }
+
     g_hAmiBrokerWnd = NULL;
   }
     
@@ -180,9 +211,7 @@ PLUGINAPI int Notify(struct PluginNotification* pn) {
 
       PostMessage(g_hAmiBrokerWnd, WM_NULL, 0, 0);
 
-      // =======================================================
-      // ---- (2) MODIFIKASI SWITCH CASE UNTUK MENU BARU ----
-      // =======================================================
+      // ---- Menu ----
       switch (selection) {
         case ID_STATUS_CONNECT:
           if(g_wsClient) {
@@ -212,7 +241,7 @@ PLUGINAPI int Notify(struct PluginNotification* pn) {
 }
 
 PLUGINAPI int Configure( LPCTSTR pszPath, struct InfoSite *pSite ) {
-  // Ensure that we use our DLL handle when opening the dialog
+  // Pastikan kita pakai DLL Handle saat buka dialog
   extern HMODULE g_hDllModule; 
 
   // ---- Cek nStructSize ----
@@ -221,7 +250,7 @@ PLUGINAPI int Configure( LPCTSTR pszPath, struct InfoSite *pSite ) {
     oDlg.DoModal(g_hAmiBrokerWnd);      // Tampilkan dialog
   } else {
     // Old version
-    // DO NOT CALL AddStockNew(). Display a warning message.
+    // DO NOT CALL AddStockNew(). Tampilkan warning message.
     MessageBoxA(g_hAmiBrokerWnd, 
                 "Plugin requires a newer version of AmiBroker or InfoSite structure size is too small. Update AmiBroker to v5.27+.", 
                 "Valkyrie Datafeed Error", MB_ICONERROR);

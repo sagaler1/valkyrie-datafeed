@@ -58,17 +58,21 @@ static IDispatch* GetStocksCollection(IDispatch* pApp) {
   return nullptr;
 }
 
-static bool AddSymbolToStocks(IDispatch* pStocks, const std::wstring& ticker, const std::wstring& fullname) {
+// ---- (MODIFIKASI 1) ----
+// Ubah fungsi ini biar nerima struct SymbolInfo
+static bool AddSymbolToStocks(IDispatch* pStocks, const SymbolInfo& info) {
   if (!pStocks) return false;
 
   OLECHAR* methodAdd = L"Add";
   DISPID dispidAdd;
   if (FAILED(pStocks->GetIDsOfNames(IID_NULL, &methodAdd, 1, LOCALE_USER_DEFAULT, &dispidAdd))) return false;
 
+  // --- Argumen Ticker (info.code) ---
+  std::wstring wticker = to_wstring_ascii(info.code);
   VARIANTARG arg;
   VariantInit(&arg);
   arg.vt = VT_BSTR;
-  arg.bstrVal = SysAllocString(ticker.c_str());
+  arg.bstrVal = SysAllocString(wticker.c_str());
 
   DISPPARAMS params = { &arg, nullptr, 1, 0 };
   VARIANT stockResult;
@@ -81,21 +85,57 @@ static bool AddSymbolToStocks(IDispatch* pStocks, const std::wstring& ticker, co
 
   IDispatch* pStock = stockResult.pdispVal;
 
-  // Set FullName
+  // --- Set FullName (info.name) ---
   OLECHAR* propFullName = L"FullName";
   DISPID dispidFullName;
   if (SUCCEEDED(pStock->GetIDsOfNames(IID_NULL, &propFullName, 1, LOCALE_USER_DEFAULT, &dispidFullName))) {
+    std::wstring wname = to_wstring_ascii(info.name);
     VARIANTARG val;
     VariantInit(&val);
     val.vt = VT_BSTR;
-    val.bstrVal = SysAllocString(fullname.c_str());
+    val.bstrVal = SysAllocString(wname.c_str());
     DISPID dispidNamed = DISPID_PROPERTYPUT;
     DISPPARAMS dispParams = { &val, &dispidNamed, 1, 1 };
     pStock->Invoke(dispidFullName, IID_NULL, LOCALE_USER_DEFAULT, DISPATCH_PROPERTYPUT, &dispParams, NULL, NULL, NULL);
     VariantClear(&val);
   }
 
-  // Mark Modified = true
+  // ---- BLOK Sector & Industry ----
+  if (info.sector_id >= 0) 
+  {
+    OLECHAR* propSectorID = L"SectorID";
+    DISPID dispidSectorID;
+    if (SUCCEEDED(pStock->GetIDsOfNames(IID_NULL, &propSectorID, 1, LOCALE_USER_DEFAULT, &dispidSectorID))) {
+      VARIANTARG val;
+      VariantInit(&val);
+      val.vt = VT_I4; // "Long" untuk OLE property
+      val.lVal = info.sector_id;
+
+      DISPID dispidNamed = DISPID_PROPERTYPUT;
+      DISPPARAMS dispParams = { &val, &dispidNamed, 1, 1 };
+      pStock->Invoke(dispidSectorID, IID_NULL, LOCALE_USER_DEFAULT, DISPATCH_PROPERTYPUT, &dispParams, NULL, NULL, NULL);
+      VariantClear(&val);
+    }
+  }
+
+  if (info.industry_id >= 0) 
+  {
+    OLECHAR* propIndustryID = L"IndustryID";
+    DISPID dispidIndustryID;
+    if (SUCCEEDED(pStock->GetIDsOfNames(IID_NULL, &propIndustryID, 1, LOCALE_USER_DEFAULT, &dispidIndustryID))) {
+      VARIANTARG val;
+      VariantInit(&val);
+      val.vt = VT_I4; // VT_I4 adalah C++ OLE type untuk "Long" 32-bit
+      val.lVal = info.industry_id;
+      
+      DISPID dispidNamed = DISPID_PROPERTYPUT;
+      DISPPARAMS dispParams = { &val, &dispidNamed, 1, 1 };
+      pStock->Invoke(dispidIndustryID, IID_NULL, LOCALE_USER_DEFAULT, DISPATCH_PROPERTYPUT, &dispParams, NULL, NULL, NULL);
+      VariantClear(&val);
+    }
+  }
+
+  // ---- Mark Modified =  ----
   OLECHAR* propModified = L"Modified";
   DISPID dispidModified;
   if (SUCCEEDED(pStock->GetIDsOfNames(IID_NULL, &propModified, 1, LOCALE_USER_DEFAULT, &dispidModified))) {
@@ -113,6 +153,7 @@ static bool AddSymbolToStocks(IDispatch* pStocks, const std::wstring& ticker, co
   VariantClear(&stockResult);
   return true;
 }
+// ------------------------------------------
 
 static void SaveDatabase(IDispatch* pApp) {
   if (!pApp) return;
@@ -150,12 +191,11 @@ static bool AddSymbolsViaOLEBatch(HWND hDlg, const std::vector<SymbolInfo>& list
   for (const auto& info : list) {
     if (info.code.empty() || info.name.empty()) continue;
 
-    std::wstring wsym = to_wstring_ascii(info.code);
-    std::wstring wname = to_wstring_ascii(info.name);
-
     bool ok = false;
     try {
-      ok = AddSymbolToStocks(pStocks, wsym, wname);
+      // ---- (MODIFIKASI 3) ----
+      // Panggil fungsi yang udah di-update
+      ok = AddSymbolToStocks(pStocks, info); 
     } catch (...) {
       LogOLE("[BATCH] Exception while adding symbol: " + info.code);
       continue;
@@ -182,6 +222,7 @@ static bool AddSymbolsViaOLEBatch(HWND hDlg, const std::vector<SymbolInfo>& list
 }
 
 // ---- Dialog Logic ----
+// (Sisa file dari sini ke bawah TIDAK BERUBAH)
 CConfigureDlg::CConfigureDlg(struct InfoSite* pSite) : m_pSite(pSite) {}
 
 void CConfigureDlg::DoModal(HWND hParent) {

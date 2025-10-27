@@ -19,7 +19,7 @@ using namespace std::chrono;
 
 std::string host = Config::getInstance().getHost();
 
-// ---- Fungsi Logging & Helper
+// ---- Fungsi Logging & Helper ----
 void LogApi(const std::string& msg) {
   SYSTEMTIME t;
   GetLocalTime(&t);
@@ -28,7 +28,7 @@ void LogApi(const std::string& msg) {
   OutputDebugStringA((std::string(buf) + msg + "\n").c_str());
 }
 
-// ---- WinHTTP Helper for GET request
+// ---- WinHTTP Helper for GET request ----
 std::string WinHttpGetData( const std::string& url) {
   std::string responseBody;
   HINTERNET hSession = NULL, hConnect = NULL, hRequest = NULL;
@@ -134,7 +134,7 @@ std::string WinHttpGetData( const std::string& url) {
   return responseBody;
 }
 
-// ---- Helper Functions untuk Manipulasi Tanggal 
+// ---- Helper Functions untuk Manipulasi Tanggal ----
 static std::chrono::system_clock::time_point stringToTimePoint(const std::string& date_str) {
   std::tm tm = {};
   std::stringstream ss(date_str);
@@ -169,7 +169,7 @@ static size_t estimate_days_between(const std::string& from, const std::string& 
   }
 }
 
-// ---- FUNGSI UTAMA: fetchHistorical dengan WinHTTP & simdjson ondemand ----
+// ---- FUNGSI UTAMA: fetchHistorical ----
 // Retrieve all data from the API in one full call.
 // The “from” and “to” parameters are sent directly to the backend endpoint.
 std::vector<Candle> fetchHistorical(const std::string& symbol, const std::string& from, const std::string& to) {
@@ -437,18 +437,23 @@ std::vector<SymbolInfo> fetchSymbolList() {
         auto val = field.value();
 
         // Cek tipe string
-        if (val.type() != simdjson::ondemand::json_type::string) {
-          LogApi("[API_Symbols] Error: Non-string field '" + std::string(key) + "' in item");
-          valid_item = false;
-          break;
+        if (val.type() == simdjson::ondemand::json_type::string) {
+            std::string_view sv = val.get_string().value();
+            if (key == "code" && !sv.empty() && sv.size() < MAX_SYMBOL_LEN) {
+              info.code.assign(sv.data(), sv.size());
+            }
+            else if (key == "name" && !sv.empty() && sv.size() < 128) {
+              info.name.assign(sv.data(), sv.size());
+            }
         }
-
-        std::string_view sv = val.get_string().value();
-        if (key == "code" && !sv.empty() && sv.size() < MAX_SYMBOL_LEN) {
-          info.code.assign(sv.data(), sv.size());
+        // ---- BLOK Sector & Industry (non-string) ----
+        else if (key == "sector_id" && val.type() == simdjson::ondemand::json_type::number) {
+            // Ambil sebagai integer (Long di OLE itu 32-bit integer / int)
+            info.sector_id = static_cast<int>(val.get_int64().value());
         }
-        else if (key == "name" && !sv.empty() && sv.size() < 128) {
-          info.name.assign(sv.data(), sv.size());
+        else if (key == "industry_id" && val.type() == simdjson::ondemand::json_type::number) {
+            // Ambil sebagai integer (Long di OLE itu 32-bit integer / int)
+            info.industry_id = static_cast<int>(val.get_int64().value());
         }
       }
 

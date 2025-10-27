@@ -57,6 +57,8 @@ struct LiveQuote {
 struct SymbolInfo {
   std::string code;
   std::string name;
+  int sector_id = -1;
+  int industry_id = -1;
 };
 
 #endif // TYPES_H

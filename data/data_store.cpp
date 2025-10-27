@@ -4,6 +4,7 @@
 #include <chrono>
 #include <sstream>
 #include <iomanip>
+#include <mutex>
 
 void DataStore::setHistorical(const std::string& symbol, const std::vector<Candle>& candles) {
   std::lock_guard<std::mutex> lock(m_mtx);
@@ -131,6 +132,43 @@ void DataStore::mergeLiveToHistorical(const std::string& symbol) {
 }
 
 void DataStore::updateEodBar(const std::string& symbol, const Candle& candle) {
-  // Versi baru: lebih aman dan idempotent
-  mergeHistorical(symbol, { candle });
+  std::lock_guard<std::mutex> lock(m_mtx);
+
+  // Cek apakah data historis untuk symbol ini SUDAH ADA di cache?
+  auto it = m_historicalData.find(symbol);
+
+  // JIKA CACHE BELUM ADA (it == m_historicalData.end()), DO NOTHING
+  // Jika kita paksakan merge, kita akan "meracuni" cache
+  // dengan 1 bar ini, dan GetQuotesEx tidak akan pernah
+  // trigger full historical fetch.
+  if (it == m_historicalData.end()) {
+    return;
+  }
+
+  // CACHE SUDAH ADA, kita lanjut
+  // 'it' menunjuk ke pair<string, vector<Candle>>
+  // 'it->second' adalah vector<Candle>
+  std::vector<Candle>& existingVec = it->second;
+
+  // Pakai std::map untuk merge secara efisien
+  // (menjaga urutan date + auto update jika tanggal sama)
+  std::map<std::string, Candle> merged_map;
+
+  // 1. Masukkan semua CANDLE LAMA ke map
+  for (const auto& old_candle : existingVec) {
+    merged_map[old_candle.date] = old_candle;
+  }
+
+  // 2. Masukkan (atau overwrite) CANDLE BARU dari backfill
+  merged_map[candle.date] = candle;
+
+  // 3. Convert map kembali ke vector
+  std::vector<Candle> final_candles;
+  final_candles.reserve(merged_map.size());
+  for (const auto& pair : merged_map) {
+    final_candles.push_back(pair.second);
+  }
+
+  // 4. Update vector di cache
+  existingVec = final_candles;
 }

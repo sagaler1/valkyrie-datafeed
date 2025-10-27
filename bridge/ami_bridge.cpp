@@ -11,13 +11,26 @@
 #include <thread>
 #include <mutex>
 #include <map>
+#include <atomic>
+#include <set>
 
 extern std::unique_ptr<WsClient> g_wsClient;
 extern HWND g_hAmiBrokerWnd;
+extern std::atomic<bool> g_bWorkerThreadRun;
 
 static std::mutex g_fetchMtx;
 static std::map<std::string, bool> g_isFetching;
 static std::mutex g_dataStoreMtx;
+
+// ---- FETCH & QUEUE STRUCT ----
+struct FetchRequest {
+  std::string from_date;
+  std::string to_date;
+  std::vector<Candle> preload;
+};
+
+static std::mutex g_fetchQueueMtx;
+static std::map<std::string, FetchRequest> g_fetchQueue;
 
 void LogBridge(const std::string& msg) {
   OutputDebugStringA(("[Bridge] " + msg + "\n").c_str());
@@ -37,6 +50,11 @@ std::string AmiDateToString(const PackedDate& pd) {
 
 void fetchAndCache(std::string symbol, std::string from_date, std::string to_date, std::vector<Candle> existing_candles) {
   LogIfDebug("Async fetch START for: " + symbol);
+  {
+    // Tandai sebagai "sedang fetching"
+    std::lock_guard<std::mutex> lock(g_fetchMtx);
+    g_isFetching[symbol] = true;
+  }
   std::vector<Candle> new_candles = fetchHistorical(symbol, from_date, to_date);
   LogIfDebug("Async fetch finished. Got " + std::to_string(new_candles.size()) + " bars.");
 
@@ -61,11 +79,44 @@ void fetchAndCache(std::string symbol, std::string from_date, std::string to_dat
 
   {
     std::lock_guard<std::mutex> lock(g_fetchMtx);
-    g_isFetching.erase(symbol);
+    g_isFetching.erase(symbol);   // Hapus tanda "sedang fetching"
   }
 
   if (g_hAmiBrokerWnd) PostMessage(g_hAmiBrokerWnd, WM_USER_STREAMING_UPDATE, 0, 0);
   LogIfDebug("Async fetch COMPLETE for: " + symbol);
+}
+
+void ProcessFetchQueue() {
+  while (g_bWorkerThreadRun) {
+    std::string symbol_to_fetch;
+    FetchRequest request;
+
+    // 1. Cek antrian
+    {
+      std::lock_guard<std::mutex> lock(g_fetchQueueMtx);
+      if (!g_fetchQueue.empty()) {
+        // Ambil satu request dari antrian
+        auto it = g_fetchQueue.begin();
+        symbol_to_fetch = it->first;
+        request = std::move(it->second);  // Pindahkan datanya
+        g_fetchQueue.erase(it);
+      }
+    } // Mutex release
+
+    // 2. Jika ada symbol, panggil fetchAndCache()
+    if (!symbol_to_fetch.empty()) {
+      LogBridge("Worker processing: " + symbol_to_fetch);
+      // Panggil fungsi yang sudah ada, tapi secara SERIAL
+      fetchAndCache(symbol_to_fetch, request.from_date, request.to_date, request.preload);
+      
+      // Kasih jeda sedikit antar API call
+      std::this_thread::sleep_for(std::chrono::milliseconds(400)); // Jeda 400ms
+    } else {
+      // Jika antrian kosong, tidur agak lama
+      std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+  }
+  LogBridge("Worker thread shutting down.");
 }
 
 int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int nSize, struct Quotation* pQuotes)
@@ -93,20 +144,22 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
       final_candles = gDataStore.getHistorical(symbol);
     }
   } else {
+    // CACHE MISS
     LogIfDebug("Cache MISS for " + symbol);
 
-    bool is_already_fetching = false;
+    bool is_already_fetching_or_queued = false;
     {
       std::lock_guard<std::mutex> lock(g_fetchMtx);
-      is_already_fetching = (g_isFetching.find(symbol) != g_isFetching.end());
+      is_already_fetching_or_queued = (g_isFetching.find(symbol) != g_isFetching.end());
+    }
+    {
+      std::lock_guard<std::mutex> lock(g_fetchQueueMtx);
+      if (g_fetchQueue.find(symbol) != g_fetchQueue.end()) {
+        is_already_fetching_or_queued = true;
+      }
     }
 
-    if (!is_already_fetching) {
-      {
-        std::lock_guard<std::mutex> lock(g_fetchMtx);
-        g_isFetching[symbol] = true;
-      }
-
+    if (!is_already_fetching_or_queued) {
       // --- PRELOAD from AmiBroker ---
       std::vector<Candle> preload;
       if (nLastValid >= 0) {
@@ -124,11 +177,7 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
           c.netforeign = pQuotes[i].AuxData2;
           preload.push_back(c);
         }
-        {
-            std::lock_guard<std::mutex> dslock(g_dataStoreMtx);
-            gDataStore.setHistorical(symbol, preload);
-        }
-        LogIfDebug("Preloaded cache for " + symbol + " with " + std::to_string(preload.size()) + " bars.");
+        LogBridge("Preload data captured for " + symbol + " with " + std::to_string(preload.size()) + " bars.");
       }
 
       // Tentukan range tanggal fetch
@@ -146,16 +195,37 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
         auto next_day_tp = std::chrono::system_clock::from_time_t(last_tt) + std::chrono::hours(24);
         from_date = timePointToString(next_day_tp);
       } else {
-        int lookback_days = 365 * 2;
+        int lookback_days = 365 * 2;  // 2 tahun
         from_date = timePointToString(now - std::chrono::hours(24 * lookback_days));
       }
 
-      std::thread(fetchAndCache, symbol, from_date, to_date, std::move(preload)).detach();
+      // --- PERUBAHAN UTAMA: Masukkan ke Antrian ---
+      {
+        std::lock_guard<std::mutex> lock(g_fetchQueueMtx);
+        FetchRequest req;
+        req.from_date = from_date;
+        req.to_date = to_date;
+        req.preload = std::move(preload);
+        g_fetchQueue[symbol] = std::move(req); // Pake std::move
+        LogBridge("Queued " + symbol + " for fetching.");
+      }
     }
 
-      LogIfDebug("Returning nLastValid+1 temporarily while async fetch runs.");
-      return nLastValid + 1;
-    }
+      // Kembalikan data preload (jika ada) agar chart tidak kosong
+      {
+        std::lock_guard<std::mutex> dslock(g_dataStoreMtx);
+        if (!gDataStore.hasHistorical(symbol) && nLastValid >= 0)
+        {
+          // Ambil dari antrian (agak boros, tapi aman)
+          std::lock_guard<std::mutex> lock(g_fetchQueueMtx);
+          auto it = g_fetchQueue.find(symbol);
+          if(it != g_fetchQueue.end() && !it->second.preload.empty()) {
+            gDataStore.setHistorical(symbol, it->second.preload);
+          }
+        }
+        final_candles = gDataStore.getHistorical(symbol); // (Mungkin kosong jika nLastValid < 0)
+      }
+    } // end cache miss
 
     if (final_candles.empty()) return 0;
 
