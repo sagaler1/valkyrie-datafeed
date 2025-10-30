@@ -13,8 +13,13 @@
 /CMakeCache.txt
 *.cmake
 
+# editor cache
+.zed/
+.cache/*
+
 #CMake
 CMakeLists.txt
+compile_commands.json
 
 # Intermediate Visual Studio project files
 *.suo

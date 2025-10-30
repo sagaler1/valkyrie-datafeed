@@ -25,7 +25,8 @@ private:
   std::string m_userId;
   std::string m_wsKeyUrl;
   HWND m_hAmiBrokerWnd;
-  std::atomic<int>* m_pStatus; // Pointer untuk update status global
+  std::atomic<int>* m_pStatus;                    // Pointer untuk update status global
+  std::vector<std::string> m_subscribedSymbols;   // State management untuk subscribe
 
   // Metode internal
   void run();
@@ -36,7 +37,9 @@ private:
   std::string buildHandshakeBinary(const std::string& userId, const std::string& key);
   std::string buildPingBinary();
   std::string buildSubscribeBinary(const std::string& userId, const std::string& key, const std::vector<std::string>& symbols);
-  std::vector<std::string> loadSymbols(const std::string& path = "symbols.txt");
+
+  //std::vector<std::string> loadSymbols(const std::string& path = "symbols.txt");    // Subscribe symbols berbasis file
+  std::vector<std::string> getDBSymbols();                                            // Subscribe berbasis DB
 
 
 public:

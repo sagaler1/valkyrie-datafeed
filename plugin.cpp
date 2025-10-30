@@ -17,13 +17,13 @@
 std::unique_ptr<WsClient> g_wsClient;
 DataStore gDataStore;
 HWND g_hAmiBrokerWnd = NULL;
-HMODULE g_hDllModule = NULL;                // To store our DLL handle
+HMODULE g_hDllModule = NULL;                      // DLL handle
 
 std::atomic<int> g_nStatus = STATE_IDLE;
 
 // ---- Worker Thread ----
 std::thread g_workerThread;
-std::atomic<bool> g_bWorkerThreadRun = false;     // background thread
+std::atomic<bool> g_bWorkerThreadRun = false;     // Background thread
 
 // ---- DllMain Entry Point ----
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved) {
@@ -43,7 +43,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 PLUGINAPI int GetPluginInfo(struct PluginInfo* pInfo) {
   pInfo->nStructSize = sizeof(PluginInfo);
   pInfo->nType = PLUGIN_TYPE_DATA;
-  pInfo->nVersion = 100; // v0.1.0
+  pInfo->nVersion = 1000; // v0.1.0
   pInfo->nIDCode = PIDCODE('V', 'D', 'T', 'F');
   strcpy_s(pInfo->szName, "Valkyrie Datafeed");
   strcpy_s(pInfo->szVendor, "Dhani");
@@ -55,7 +55,7 @@ PLUGINAPI int Init(void) {
   // ---- Common Controls initialization 
   INITCOMMONCONTROLSEX icex;
   icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
-  icex.dwICC = ICC_DATE_CLASSES;                  // Kita hanya butuh kelas untuk Date/Time controls
+  icex.dwICC = ICC_DATE_CLASSES;                  // Kita hanya perlu class untuk Date/Time control
   InitCommonControlsEx(&icex);
 
   g_wsClient = std::make_unique<WsClient>();
@@ -147,7 +147,7 @@ PLUGINAPI int Notify(struct PluginNotification* pn) {
     // ---- START WORKER THREAD ----
     if (!g_bWorkerThreadRun) {
       g_bWorkerThreadRun = true;
-      g_workerThread = std::thread(ProcessFetchQueue);  // Fungsi ini ada di ami_bridge
+      g_workerThread = std::thread(ProcessFetchQueue);                  // Fungsi ini ada di ami_bridge
       OutputDebugStringA("[Plugin] Fetcher worker thread started.");
     }
   }

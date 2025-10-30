@@ -61,17 +61,17 @@ void fetchAndCache(std::string symbol, std::string from_date, std::string to_dat
   {
     std::lock_guard<std::mutex> dslock(g_dataStoreMtx);
 
-    // Merge existing preload candles (from AmiBroker) if any
+    // Merge existing preload candles from AmiBroker (jika tersedia)
     if (!existing_candles.empty()) {
       gDataStore.mergeHistorical(symbol, existing_candles);
     }
 
-    // Merge new candles fetched from API
+    // Merge new candles dari API
     if (!new_candles.empty()) {
       gDataStore.mergeHistorical(symbol, new_candles);
     }
 
-    // If both empty, still create empty cache entry to mark as checked
+    // Jika semua kosong, buat empty cache supaya mark as checked
     if (existing_candles.empty() && new_candles.empty()) {
       gDataStore.setHistorical(symbol, {});
     }
@@ -109,7 +109,7 @@ void ProcessFetchQueue() {
       // Panggil fungsi yang sudah ada, tapi secara SERIAL
       fetchAndCache(symbol_to_fetch, request.from_date, request.to_date, request.preload);
       
-      // Kasih jeda sedikit antar API call
+      // Beri jeda sedikit antar API call
       std::this_thread::sleep_for(std::chrono::milliseconds(400)); // Jeda 400ms
     } else {
       // Jika antrian kosong, tidur agak lama
@@ -192,8 +192,9 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
         last_tm.tm_mon  = lastQuoteDate.Month - 1;
         last_tm.tm_mday = lastQuoteDate.Day;
         std::time_t last_tt = std::mktime(&last_tm);
-        auto next_day_tp = std::chrono::system_clock::from_time_t(last_tt) + std::chrono::hours(24);
-        from_date = timePointToString(next_day_tp);
+        // auto next_day_tp = std::chrono::system_clock::from_time_t(last_tt) + std::chrono::hours(24);
+        // from_date = timePointToString(next_day_tp);
+        from_date = timePointToString(std::chrono::system_clock::from_time_t(last_tt));
       } else {
         int lookback_days = 365 * 2;  // 2 tahun
         from_date = timePointToString(now - std::chrono::hours(24 * lookback_days));

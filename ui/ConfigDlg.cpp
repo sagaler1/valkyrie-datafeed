@@ -30,7 +30,7 @@ static std::wstring to_wstring_ascii(const std::string& s) {
   return std::wstring(s.begin(), s.end());
 }
 
-// ---- Core OLE Batch Logic ----
+// ---- Core OLE Logic ----
 
 static IDispatch* GetBrokerApplication() {
   CLSID clsid;
@@ -101,7 +101,7 @@ static bool AddSymbolToStocks(IDispatch* pStocks, const SymbolInfo& info) {
   }
 
   // ---- BLOK Sector & Industry ----
-  if (info.sector_id >= 0) 
+  if (info.sector_id >= 0)
   {
     OLECHAR* propSectorID = L"SectorID";
     DISPID dispidSectorID;
@@ -118,7 +118,7 @@ static bool AddSymbolToStocks(IDispatch* pStocks, const SymbolInfo& info) {
     }
   }
 
-  if (info.industry_id >= 0) 
+  if (info.industry_id >= 0)
   {
     OLECHAR* propIndustryID = L"IndustryID";
     DISPID dispidIndustryID;
@@ -127,7 +127,7 @@ static bool AddSymbolToStocks(IDispatch* pStocks, const SymbolInfo& info) {
       VariantInit(&val);
       val.vt = VT_I4; // VT_I4 adalah C++ OLE type untuk "Long" 32-bit
       val.lVal = info.industry_id;
-      
+
       DISPID dispidNamed = DISPID_PROPERTYPUT;
       DISPPARAMS dispParams = { &val, &dispidNamed, 1, 1 };
       pStock->Invoke(dispidIndustryID, IID_NULL, LOCALE_USER_DEFAULT, DISPATCH_PROPERTYPUT, &dispParams, NULL, NULL, NULL);
@@ -195,7 +195,7 @@ static bool AddSymbolsViaOLEBatch(HWND hDlg, const std::vector<SymbolInfo>& list
     try {
       // ---- (MODIFIKASI 3) ----
       // Panggil fungsi yang udah di-update
-      ok = AddSymbolToStocks(pStocks, info); 
+      ok = AddSymbolToStocks(pStocks, info);
     } catch (...) {
       LogOLE("[BATCH] Exception while adding symbol: " + info.code);
       continue;
@@ -222,7 +222,6 @@ static bool AddSymbolsViaOLEBatch(HWND hDlg, const std::vector<SymbolInfo>& list
 }
 
 // ---- Dialog Logic ----
-// (Sisa file dari sini ke bawah TIDAK BERUBAH)
 CConfigureDlg::CConfigureDlg(struct InfoSite* pSite) : m_pSite(pSite) {}
 
 void CConfigureDlg::DoModal(HWND hParent) {
@@ -239,7 +238,7 @@ void CConfigureDlg::OnRetrieveClicked(HWND hDlg) {
   HWND hBtn = GetDlgItem(hDlg, IDC_RETRIEVE_BUTTON);
   EnableWindow(hBtn, FALSE);
 
-  SetStatusText(hDlg, "Fetching ALL symbols from API (Blocking UI)... Please Wait.");
+  SetStatusText(hDlg, "Fetching symbols... Please Wait.");
   UpdateWindow(hDlg);
 
   m_fetchedSymbolList = fetchSymbolList();
@@ -248,7 +247,7 @@ void CConfigureDlg::OnRetrieveClicked(HWND hDlg) {
     SetStatusText(hDlg, "Failed to fetch symbol list or list is empty.");
   } else {
     std::stringstream ss;
-    ss << "Fetched " << m_fetchedSymbolList.size() << " symbols. Adding via OLE Batch...";
+    ss << "Fetched " << m_fetchedSymbolList.size() << " symbols. Adding symbols...";
     SetStatusText(hDlg, ss.str());
     UpdateWindow(hDlg);
 

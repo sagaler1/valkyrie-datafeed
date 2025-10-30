@@ -19,7 +19,7 @@ std::string timePointToString(const std::chrono::system_clock::time_point& tp);
 std::string WinHttpGetData(const std::string& url);
 
 // Fungsi untuk mengambil data EOD backfill untuk SEMUA simbol pada tanggal tertentu.
-// Mengembalikan Map<Symbol, Candle> untuk data yang ter-parse.
+// Return Map<Symbol, Candle> untuk data yang ter-parse.
 std::map<std::string, Candle> fetchDailyBackfill(const std::string& date);
 
 // Fungsi untuk mengambil daftar semua simbol yang terdaftar di bursa

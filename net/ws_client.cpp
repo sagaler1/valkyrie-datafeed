@@ -1,10 +1,10 @@
+#include <windows.h>
+#include <chrono>
 #include "ws_client.h"
 #include "data_store.h"
 #include "plugin.h"
 #include "pluginstate.h"
 #include "dotenv.h"
-#include <windows.h>
-#include <chrono>
 #include "api_client.h"         // WinHttpGetData declaration
 
 #include "pb_common.h"
@@ -17,12 +17,142 @@
 #include "pong.pb.h"
 #include "config.h"
 
+// ---- INCLUDE UNTUK OLE / COM ----
+#include <vector>
+#include <atlbase.h>
+#include <comdef.h>
+
 void LogWS(const std::string& msg) {
   SYSTEMTIME t;
   GetLocalTime(&t);
   char buf[64];
   sprintf_s(buf, "[%02d:%02d:%02d.%03d] ", t.wHour, t.wMinute, t.wSecond, t.wMilliseconds);
   OutputDebugStringA((std::string(buf) + msg + "\n").c_str());
+}
+
+// ---- OLE Helper ----
+// (Dicopy dari ConfigDlg.cpp untuk konsistensi)
+
+static IDispatch* GetBrokerApplication() {
+  CLSID clsid;
+  if (FAILED(CLSIDFromProgID(L"Broker.Application", &clsid))) return nullptr;
+
+  IDispatch* pDisp = nullptr;
+  if (SUCCEEDED(CoCreateInstance(clsid, NULL, CLSCTX_LOCAL_SERVER, IID_IDispatch, (void**)&pDisp))) {
+    return pDisp;
+  }
+  return nullptr;
+}
+
+static IDispatch* GetStocksCollection(IDispatch* pApp) {
+  if (!pApp) return nullptr;
+  OLECHAR* propStocks = L"Stocks";
+  DISPID dispidStocks;
+  if (FAILED(pApp->GetIDsOfNames(IID_NULL, &propStocks, 1, LOCALE_USER_DEFAULT, &dispidStocks))) return nullptr;
+
+  VARIANT result;
+  VariantInit(&result);
+  DISPPARAMS noArgs = { nullptr, nullptr, 0, 0 };
+  if (SUCCEEDED(pApp->Invoke(dispidStocks, IID_NULL, LOCALE_USER_DEFAULT, DISPATCH_PROPERTYGET, &noArgs, &result, NULL, NULL))) {
+    return result.pdispVal;
+  }
+  return nullptr;
+}
+
+// ---- Dapatkan symbols dari DB ----
+std::vector<std::string> WsClient::getDBSymbols() {
+    std::vector<std::string> symbols;
+    CoInitialize(NULL);
+    LogWS("[OLE] CoInitialize OK. Fetching DB symbols...");
+
+    IDispatch* pApp = GetBrokerApplication();
+    if (!pApp) {
+        LogWS("[OLE] ERROR: Cannot create Broker.Application instance.");
+        CoUninitialize();
+        return symbols;
+    }
+
+    IDispatch* pStocks = GetStocksCollection(pApp);
+    if (!pStocks) {
+        LogWS("[OLE] ERROR: Cannot get Stocks collection.");
+        pApp->Release();
+        CoUninitialize();
+        return symbols;
+    }
+
+    // 1. Get Stocks.Count
+    OLECHAR* propCount = L"Count";
+    DISPID dispidCount;
+    long count = 0;
+    if (SUCCEEDED(pStocks->GetIDsOfNames(IID_NULL, &propCount, 1, LOCALE_USER_DEFAULT, &dispidCount))) {
+        VARIANT result;
+        VariantInit(&result);
+        DISPPARAMS noArgs = { nullptr, nullptr, 0, 0 };
+        if (SUCCEEDED(pStocks->Invoke(dispidCount, IID_NULL, LOCALE_USER_DEFAULT, DISPATCH_PROPERTYGET, &noArgs, &result, NULL, NULL))) {
+            count = result.lVal;
+        }
+    }
+
+    if (count == 0) {
+        LogWS("[OLE] Stocks collection has 0 items.");
+        pStocks->Release();
+        pApp->Release();
+        CoUninitialize();
+        return symbols;
+    }
+
+    // 2. Loop dan Get Stocks.Item(i).Ticker
+    symbols.reserve(count);
+    for (long i = 0; i < count; i++) {
+        IDispatch* pStock = nullptr;
+        
+        // --- Get Stocks.Item(i) ---
+        OLECHAR* methodItem = L"Item";
+        DISPID dispidItem;
+        if (FAILED(pStocks->GetIDsOfNames(IID_NULL, &methodItem, 1, LOCALE_USER_DEFAULT, &dispidItem))) continue;
+
+        VARIANTARG arg;
+        VariantInit(&arg);
+        arg.vt = VT_I4; // Tipe argumen adalah Long (32-bit int)
+        arg.lVal = i;
+        DISPPARAMS params = { &arg, nullptr, 1, 0 };
+        VARIANT resultStock;
+        VariantInit(&resultStock);
+        
+        // Panggil 'Item' sebagai PROPERTYGET (bukan METHOD)
+        if (SUCCEEDED(pStocks->Invoke(dispidItem, IID_NULL, LOCALE_USER_DEFAULT, DISPATCH_PROPERTYGET, &params, &resultStock, NULL, NULL)) && resultStock.vt == VT_DISPATCH) {
+            pStock = resultStock.pdispVal;
+        } else {
+            continue; // Gagal dapet stock item
+        }
+
+        // --- Get Stock.Ticker ---
+        OLECHAR* propTicker = L"Ticker";
+        DISPID dispidTicker;
+        if (SUCCEEDED(pStock->GetIDsOfNames(IID_NULL, &propTicker, 1, LOCALE_USER_DEFAULT, &dispidTicker))) {
+            VARIANT resultTicker;
+            VariantInit(&resultTicker);
+            DISPPARAMS noArgs = { nullptr, nullptr, 0, 0 };
+            if (SUCCEEDED(pStock->Invoke(dispidTicker, IID_NULL, LOCALE_USER_DEFAULT, DISPATCH_PROPERTYGET, &noArgs, &resultTicker, NULL, NULL)) && resultTicker.vt == VT_BSTR) {
+                
+                // Convert BSTR (wide string) to std::string (narrow)
+                _bstr_t b(resultTicker.bstrVal, false); // 'false' = jangan copy, cuma wrap
+                std::string ticker = (const char*)b;
+                if (!ticker.empty()) {
+                    symbols.push_back(ticker);
+                }
+            }
+            VariantClear(&resultTicker);
+        }
+        
+        pStock->Release();
+    }
+
+    LogWS("[OLE] Finished. Found " + std::to_string(symbols.size()) + " symbols in DB.");
+    pStocks->Release();
+    pApp->Release();
+    CoUninitialize();
+    return symbols;
 }
 
 // --- Implementasi WsClient ---
@@ -67,18 +197,24 @@ void WsClient::run() {
   m_ws = std::make_unique<ix::WebSocket>();
   m_ws->setUrl(socket_url);
 
-  LogWS(std::string("[WS] Worker thread started. Fetching wskey from") + m_wsKeyUrl);
+  LogWS(std::string("[WS] Worker thread started. Fetching wskey from: ") + m_wsKeyUrl);
   std::string wskey = fetchWsKey(m_wsKeyUrl);
   if (wskey.empty()) {
     LogWS(std::string("[WS] CRITICAL: Failed to fetch wskey. Stopping thread"));
-    if (m_pStatus) *m_pStatus = 2;
+    if (m_pStatus) *m_pStatus = 2;    // STATE_DISCONNECTED
     m_run = false;
     return;
   }
   LogWS("[WS] wskey successfully fetched.");
 
-  auto symbols = loadSymbols();
+  // auto symbols = loadSymbols();        // Load symbols dari file
+  m_subscribedSymbols = getDBSymbols();   // Load symbols dari DB
+
   std::atomic<bool> isSubscribed{false};
+
+  // ---- THROTTLING ----
+  auto last_ui_update = std::chrono::steady_clock::now();
+  const auto ui_update_interval = std::chrono::milliseconds(250); // 4x per detik
 
   m_ws->setOnMessageCallback([&](const ix::WebSocketMessagePtr& msg) {
     if (msg->type == ix::WebSocketMessageType::Open) {
@@ -106,13 +242,17 @@ void WsClient::run() {
           // 2. Inisialisasi struct PongReceive
           PongReceive pong = PongReceive_init_zero;
 
-          // 3. Decode pesannya
+          // 3. Decode pesan
           bool status = pb_decode(&stream, PongReceive_fields, &pong);
 
           // 4. Cek apakah decode berhasil dan field 'pong' ada isinya
           if (status && pong.has_pong) {
-            LogWS(std::string("[WS] Handshake confirmed. Subscribing to " + std::to_string(symbols.size()) + " symbols"));
-            if (!symbols.empty()) m_ws->sendBinary(buildSubscribeBinary(m_userId, wskey, symbols));
+            LogWS(std::string("[WS] Handshake confirmed. Subscribing to " + std::to_string(m_subscribedSymbols.size()) + " symbols"));
+            // if (!symbols.empty()) m_ws->sendBinary(buildSubscribeBinary(m_userId, wskey, symbols));
+            if (!m_subscribedSymbols.empty()) {
+                // Kirim SEMUA simbol sekaligus
+                m_ws->sendBinary(buildSubscribeBinary(m_userId, wskey, m_subscribedSymbols));
+            }
             isSubscribed = true;
           } else {
             LogWS(std::string("[WS] WARNING: Message before handshake confirmed."));
@@ -129,13 +269,21 @@ void WsClient::run() {
             // 2. Inisialisasi struct StockFeed
             StockFeed feed = StockFeed_init_zero;
 
-            // 3. Decode pesannya
+            // 3. Decode pesan
             bool status = pb_decode(&stream, StockFeed_fields, &feed);
 
             // 4. Proses jika decode berhasil DAN sub-pesan stock_data ada isinya
             if (status && feed.has_stock_data) {
                 gDataStore.updateLiveQuote(feed); // Kirim struct nanopb ke DataStore
-                if (m_hAmiBrokerWnd) PostMessage(m_hAmiBrokerWnd, WM_USER_STREAMING_UPDATE, 0, 0);
+                // if (m_hAmiBrokerWnd) PostMessage(m_hAmiBrokerWnd, WM_USER_STREAMING_UPDATE, 0, 0);
+                auto now = std::chrono::steady_clock::now();
+                if (now - last_ui_update > ui_update_interval) 
+                {
+                    if (m_hAmiBrokerWnd) {
+                        PostMessage(m_hAmiBrokerWnd, WM_USER_STREAMING_UPDATE, 0, 0);
+                    }
+                    last_ui_update = now; // Reset timer
+                }
             } else {
                 if (msg->str.size() < 12) {
                     return;     // heartbeat / pong
@@ -276,8 +424,15 @@ std::string WsClient::buildSubscribeBinary(const std::string& userId, const std:
 
   // Buffer yang cukup besar. 20 simbol * 16 char = 320, ditambah userId, key, dan overhead.
   // 1024 bytes sangat aman.
-  uint8_t buffer[1024];
-  pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+  // uint8_t buffer[1024];
+  // pb_ostream_t stream = pb_ostream_from_buffer(buffer, sizeof(buffer));
+
+  // ---- BUFFER DINAMIS / BESAR ----
+  // Ukuran buffer statis tidak akan cukup untuk 1000 simbol
+  // (1000 simbol * 6 char avg) + overhead = 6KB+
+  // Alokasikan 32KB biar aman
+  std::vector<uint8_t> buffer(32768); // 32KB
+  pb_ostream_t stream = pb_ostream_from_buffer(buffer.data(), buffer.size());
 
   // 2. Isi field-field simpel
   strncpy_s(sub.userId, sizeof(sub.userId), userId.c_str(), _TRUNCATE);
@@ -290,9 +445,16 @@ std::string WsClient::buildSubscribeBinary(const std::string& userId, const std:
   sub.subs.livequote_count = 0; // Mulai counter dari 0
   for (const auto& sym : symbols) {
     // Cek agar tidak melebihi max_count yang didefinisikan di .options
-    if (sub.subs.livequote_count >= (sizeof(sub.subs.livequote) / sizeof(sub.subs.livequote[0]))) {
-      LogWS("[WS] WARNING: Symbol count exceeds max_count(20) for subscription. Truncating list.");
-      break; // Stop menambahkan jika sudah penuh
+    // if (sub.subs.livequote_count >= (sizeof(sub.subs.livequote) / sizeof(sub.subs.livequote[0]))) {
+    //  LogWS("[WS] WARNING: Symbol count exceeds max_count(20) for subscription. Truncating list.");
+    //  break; // Stop menambahkan jika sudah penuh
+    // }
+
+    // Cek agar tidak melebihi max_count (PASTIKAN .options UDAH DIUPDATE)
+    size_t max_count_arr = (sizeof(sub.subs.livequote) / sizeof(sub.subs.livequote[0]));
+    if (sub.subs.livequote_count >= max_count_arr) {
+      LogWS("[WS] WARNING: Symbol count exceeds max_count(" + std::to_string(max_count_arr) + ") Truncating list.");
+      break; 
     }
 
     // Salin simbol ke dalam array 2D
@@ -311,45 +473,7 @@ std::string WsClient::buildSubscribeBinary(const std::string& userId, const std:
   }
 
   // 6. Buat std::string dari buffer
-  std::string out(reinterpret_cast<char*>(buffer), stream.bytes_written);
+  std::string out(reinterpret_cast<char*>(buffer.data()), stream.bytes_written);
   return out;
   // ---- end nanopb parser ----
-}
-
-std::vector<std::string> WsClient::loadSymbols(const std::string& filename) {
-  std::vector<std::string> symbols;
-  char path[MAX_PATH] = { 0 };
-
-  HMODULE hModule = GetModuleHandleA("Valkyrie.dll");
-  if (hModule == NULL) {
-    LogWS("[WS] CRITICAL: GetModuleHandleA for Valkyrie.dll failed.");
-    return symbols;
-  }
-  GetModuleFileNameA(hModule, path, MAX_PATH);
-
-  std::string dirPath(path);
-  size_t last_slash = dirPath.find_last_of("\\/");
-  if (std::string::npos != last_slash) {
-    dirPath = dirPath.substr(0, last_slash);
-  }
-
-  std::string fullPath = dirPath + "\\" + filename;
-  LogWS("[WS] Attempting to load symbols from: " + fullPath );
-
-  std::ifstream file(fullPath);
-  std::string line;
-  if (!file.is_open()) {
-    LogWS("[WS] ERROR: Could not open symbols file: " + fullPath );
-    return symbols;
-  }
-  while (std::getline(file, line)) {
-    if (!line.empty() && line.back() == '\r') {
-      line.pop_back();
-    }
-    if (!line.empty()) {
-      symbols.push_back(line);
-    }
-  }
-  LogWS("[WS] Loaded " + std::to_string(symbols.size()) + " symbols.");
-  return symbols;
 }

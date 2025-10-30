@@ -33,12 +33,12 @@ std::string WinHttpGetData( const std::string& url) {
   std::string responseBody;
   HINTERNET hSession = NULL, hConnect = NULL, hRequest = NULL;
 
-  // 1. Crack URL to obtain Host dan Path
+  // 1. CrackURL - memisahkan URL ke bagian komponennya seperti nama host dan path.
   URL_COMPONENTS urlComp;
   ZeroMemory(&urlComp, sizeof(urlComp));
   urlComp.dwStructSize = sizeof(urlComp);
   
-  // Buffer Allocation for Host & Path
+  // Alokasi buffer untuk host & path
   const int BUF_SIZE = 1024;
   wchar_t wsHostName[BUF_SIZE];
   wchar_t wsUrlPath[BUF_SIZE];
@@ -48,10 +48,10 @@ std::string WinHttpGetData( const std::string& url) {
   urlComp.lpszUrlPath = wsUrlPath;
   urlComp.dwUrlPathLength = BUF_SIZE;
 
-  // WinHttpCrackUrl only accepts LPWSTR/LPCWSTR (Wide String), but our input is std::string (ANSI/UTF-8).
-  // Since the URL only contains standard ASCII characters, we can use a simple conversion.
-  // However, WinHttpCrackUrl originally accepts LPCTSTR, so on Windows we use WinHttpCrackUrlA/W.
-  // We force WinHttpCrackUrlW with conversion:
+  // WinHttpCrackUrl hanya accept LPWSTR/LPCWSTR (Wide String), dan input kita adalah std::string (ANSI/UTF-8).
+  // Karena URL hanya berisi karakter ASCII standar, kita dapat menggunakan konversi sederhana.
+  // However, WinHttpCrackUrl secara native menerima LPCTSTR, jadi di Windows kita menggunakan WinHttpCrackUrlA/W
+  // Kita 'paksa' WinHttpCrackUrlW dengan conversion:
   
   std::wstring wsUrl(url.begin(), url.end());     // Convert string to wstring (C++11)
 
@@ -80,7 +80,7 @@ std::string WinHttpGetData( const std::string& url) {
     LogApi("[WinHTTP] ERROR: WinHttpConnect failed.");
   }
     
-  // Set timeout (20 seconds)
+  // Set timeout (20 detik)
   DWORD dwTimeout = 20000; // 20000 ms
   if (hRequest) WinHttpSetOption(hRequest, WINHTTP_OPTION_CONNECT_TIMEOUT, &dwTimeout, sizeof(dwTimeout));
   if (hRequest) WinHttpSetOption(hRequest, WINHTTP_OPTION_RECEIVE_TIMEOUT, &dwTimeout, sizeof(dwTimeout));
@@ -139,7 +139,7 @@ static std::chrono::system_clock::time_point stringToTimePoint(const std::string
   std::tm tm = {};
   std::stringstream ss(date_str);
   ss >> std::get_time(&tm, "%Y-%m-%d");
-  // mktime uses localtime; consistent with earlier code
+  // mktime uses localtime; consistent dengan kode sebelumnya
   return std::chrono::system_clock::from_time_t(std::mktime(&tm));
 }
 
@@ -170,8 +170,8 @@ static size_t estimate_days_between(const std::string& from, const std::string& 
 }
 
 // ---- FUNGSI UTAMA: fetchHistorical ----
-// Retrieve all data from the API in one full call.
-// The “from” and “to” parameters are sent directly to the backend endpoint.
+// Ambil semua data dari API dalam satu panggilan penuh.
+// Parameter “from” dan “to” dikirim langsung ke endpoint backend.
 std::vector<Candle> fetchHistorical(const std::string& symbol, const std::string& from, const std::string& to) {
   std::vector<Candle> candles;
   std::string readBuffer;
@@ -268,13 +268,13 @@ std::vector<Candle> fetchHistorical(const std::string& symbol, const std::string
     auto t_parse = high_resolution_clock::now();
     duration<double, std::milli> fetch_ms = t_fetch - t0;
     duration<double, std::milli> parse_ms = t_parse - t_fetch;
-    LogApi("[API_simdjson] Fetched in " + std::to_string(fetch_ms.count()) +
+    LogApi("[API_Parser] Fetched in " + std::to_string(fetch_ms.count()) +
         " ms, parsed " + std::to_string(candles.size()) +
         " items in " + std::to_string(parse_ms.count()) +
         " ms (total " + std::to_string((fetch_ms + parse_ms).count()) + " ms)");
 
   } catch (const std::exception &e) {
-    LogApi(std::string("[API_simdjson] Exception: ") + e.what());
+    LogApi(std::string("[API_Parser] Exception: ") + e.what());
     return candles;
   }
 
@@ -286,7 +286,7 @@ std::map<std::string, Candle> fetchDailyBackfill(const std::string& date) {
   std::map<std::string, Candle> daily_summary;
   std::string readBuffer;
 
-  //Buat API dengan parameter tanggal
+  // Buat API dengan parameter tanggal
   std::string url = host + "/api/amibroker/dailybackfill";
   if (!date.empty()) {
     url += "?date=" + date;
@@ -409,7 +409,7 @@ std::vector<SymbolInfo> fetchSymbolList() {
   }
   LogApi("[API_Symbols] Raw response: " + readBuffer.substr(0, 200));
 
-  // Cek JSON valid
+  // Cek: valid JSON ?
   try {
     simdjson::ondemand::parser parser;
     simdjson::padded_string ps(readBuffer);
@@ -448,11 +448,11 @@ std::vector<SymbolInfo> fetchSymbolList() {
         }
         // ---- BLOK Sector & Industry (non-string) ----
         else if (key == "sector_id" && val.type() == simdjson::ondemand::json_type::number) {
-            // Ambil sebagai integer (Long di OLE itu 32-bit integer / int)
+            // Ambil sebagai integer (Long di OLE yaitu 32-bit integer / int)
             info.sector_id = static_cast<int>(val.get_int64().value());
         }
         else if (key == "industry_id" && val.type() == simdjson::ondemand::json_type::number) {
-            // Ambil sebagai integer (Long di OLE itu 32-bit integer / int)
+            // Ambil sebagai integer
             info.industry_id = static_cast<int>(val.get_int64().value());
         }
       }

@@ -68,7 +68,7 @@ void CEODBackfillDlg::OnFetchClicked(HWND hDlg) {
     for (const auto& pair : backfill_data) {
         const std::string& symbol = pair.first;
         const Candle& candle = pair.second;
-        
+
         // Panggil fungsi baru yang lebih aman
         gDataStore.updateEodBar(symbol, candle);
     }
@@ -76,7 +76,7 @@ void CEODBackfillDlg::OnFetchClicked(HWND hDlg) {
 
     std::string final_message = "Backfill complete! Updated " + std::to_string(backfill_data.size()) + " symbols. \nPlease refresh your charts to see the changes.";
     SetStatusText(hDlg, final_message);
-    
+
     // Beri tahu AmiBroker untuk refresh semua data
     if (g_hAmiBrokerWnd) {
         PostMessage(g_hAmiBrokerWnd, WM_USER_STREAMING_UPDATE, 0, 0);

@@ -12,7 +12,7 @@ Config& Config::getInstance() {
 }
 
 // ---- Constructor implementation
-// ---- Load variables form .env
+// ---- Load variables from .env
 Config::Config() {
   dotenv::init(); // Init call
 

@@ -1,5 +1,3 @@
-// File: core/resource.h (FIXED)
-
 // Microsoft Visual C++ generated include file.
 // Used by resource.rc
 
