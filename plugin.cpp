@@ -5,7 +5,6 @@
 #include "resource.h"
 #include "pluginstate.h"
 #include "config.h"
-#include "EODBackfillDlg.h"
 #include "ConfigDlg.h"
 #include <memory>
 #include <atomic>
@@ -224,12 +223,6 @@ PLUGINAPI int Notify(struct PluginNotification* pn) {
             g_wsClient->stop();
           }
           g_nStatus = STATE_IDLE;
-          break;
-        case ID_STATUS_EOD_BACKFILL:
-          { // Local scope
-            CEODBackfillDlg eodDlg;
-            eodDlg.DoModal(g_hAmiBrokerWnd);
-          }
           break;
         case ID_STATUS_CONFIGURE:
           break;

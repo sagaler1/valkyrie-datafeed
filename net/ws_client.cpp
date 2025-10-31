@@ -422,6 +422,7 @@ std::string WsClient::buildSubscribeBinary(const std::string& userId, const std:
   // 1. Inisialisasi struct utama
   SymbolSubscribe sub = SymbolSubscribe_init_zero;
 
+  // ---- BUFFER STATIS (Load File txt) ----
   // Buffer yang cukup besar. 20 simbol * 16 char = 320, ditambah userId, key, dan overhead.
   // 1024 bytes sangat aman.
   // uint8_t buffer[1024];

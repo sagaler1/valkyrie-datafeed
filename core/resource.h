@@ -4,14 +4,7 @@
 // --- Menu Item untuk Status Koneksi (di rentang aman) ---
 #define ID_STATUS_CONNECT           60001
 #define ID_STATUS_DISCONNECT        60002
-#define ID_STATUS_EOD_BACKFILL      60003
 #define ID_STATUS_CONFIGURE         60004
-
-// --- Dialog EOD Backfill dan Kontrolnya ---
-#define IDD_EOD_BACKFILL            102
-#define IDC_DATEPICKER_EOD          1001
-#define IDC_FETCH_BUTTON            1002
-#define IDC_STATUS_TEXT             1003
 
 // --- Menu Resource Utama ---
 #define IDR_STATUS_MENU             101
