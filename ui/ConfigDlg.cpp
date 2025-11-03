@@ -1,6 +1,7 @@
 #include "ConfigDlg.h"
 #include "resource.h"
 #include "api_client.h"
+#include "config.h"
 #include <string>
 #include <vector>
 #include <map>
@@ -9,6 +10,10 @@
 #include <thread>
 #include <atlbase.h>
 #include <comdef.h>
+#include <fstream>
+#include <vector>
+#include <Shlwapi.h>
+#pragma comment(lib, "Shlwapi.lib")
 
 #define MAX_SYMBOL_LEN 48
 extern HWND g_hAmiBrokerWnd;
@@ -58,8 +63,7 @@ static IDispatch* GetStocksCollection(IDispatch* pApp) {
   return nullptr;
 }
 
-// ---- (MODIFIKASI 1) ----
-// Ubah fungsi ini biar nerima struct SymbolInfo
+// ---- Struct SymbolInfo
 static bool AddSymbolToStocks(IDispatch* pStocks, const SymbolInfo& info) {
   if (!pStocks) return false;
 
@@ -153,7 +157,6 @@ static bool AddSymbolToStocks(IDispatch* pStocks, const SymbolInfo& info) {
   VariantClear(&stockResult);
   return true;
 }
-// ------------------------------------------
 
 static void SaveDatabase(IDispatch* pApp) {
   if (!pApp) return;
@@ -204,7 +207,7 @@ static bool AddSymbolsViaOLEBatch(HWND hDlg, const std::vector<SymbolInfo>& list
     if (ok) count++;
     if (count % 100 == 0) {
       std::stringstream ss;
-      ss << "Added via OLE (Batch): " << count << " / " << list.size();
+      ss << "Adding symbols: " << count << " / " << list.size();
       SetStatusText(hDlg, ss.str());
       UpdateWindow(hDlg);
     }
@@ -217,8 +220,33 @@ static bool AddSymbolsViaOLEBatch(HWND hDlg, const std::vector<SymbolInfo>& list
     pApp->Release();
     CoUninitialize();
 
-    SetStatusText(hDlg, "Batch update complete! Added " + std::to_string(count) + " symbols.");
+    SetStatusText(hDlg, "Update complete! Added " + std::to_string(count) + " symbols.");
     return true;
+}
+
+
+// ---- Fungsi untuk mendapatkan path .env
+static std::string GetEnvFilePath() {
+  char exePath[MAX_PATH];
+
+  GetModuleFileNameA(NULL, exePath, MAX_PATH);    // 1. Get full path Amibroker
+  PathRemoveFileSpecA(exePath);                   // 2. Remove 'Amibroker.exe'
+  return std::string(exePath) + "\\.env";         // 3. Path + ".env"
+}
+
+// ---- Fungsi write file .env
+static bool WriteEnvFile(const std::string& host, const std::string&user, const std::string socket) {
+  std::string envPath = GetEnvFilePath();
+  std::ofstream envFile(envPath);
+  if (!envFile.is_open()) {
+    return false;       // Gagal open file
+  }
+
+  envFile << "PLUGIN_HOST=" << host << "\n";
+  envFile << "PLUGIN_USERNAME=" << user << "\n";
+  envFile << "PLUGIN_SOCKET=" << socket << "\n";
+  envFile.close();
+  return true;
 }
 
 // ---- Dialog Logic ----
@@ -230,7 +258,18 @@ void CConfigureDlg::DoModal(HWND hParent) {
 }
 
 BOOL CConfigureDlg::OnInitDialog(HWND hDlg) {
-  SetStatusText(hDlg, "Click 'Retrieve ALL Symbols' to download the latest emiten list.");
+  //SetStatusText(hDlg, "Click 'Retrieve ALL Symbols' to download the latest emiten list.");
+  // ---- ISI TEXTBOX DARI CONFIG ----
+  try {
+      Config& config = Config::getInstance();
+      SetDlgItemTextA(hDlg, IDC_HOST_EDIT, config.getHost().c_str());
+      SetDlgItemTextA(hDlg, IDC_USERNAME_EDIT, config.getUsername().c_str());
+      SetDlgItemTextA(hDlg, IDC_SOCKET_URL_EDIT, config.getSocketUrl().c_str());
+  } catch (const std::exception& e) {
+      SetStatusText(hDlg, "ERROR: Failed to load config. Check .env file.");
+      OutputDebugStringA(e.what());
+  }
+
   return TRUE;
 }
 
@@ -280,6 +319,21 @@ INT_PTR CALLBACK CConfigureDlg::DialogProc(HWND hDlg, UINT message, WPARAM wPara
       switch (LOWORD(wParam)) {
         case IDC_RETRIEVE_BUTTON:
           pDlg->OnRetrieveClicked(hDlg);
+          return (INT_PTR)TRUE;
+        case IDOK:
+          {
+            char host[256], user[256], socket[256];
+            GetDlgItemTextA(hDlg, IDC_HOST_EDIT, host, 256);
+            GetDlgItemTextA(hDlg, IDC_USERNAME_EDIT, host, 256);
+            GetDlgItemTextA(hDlg, IDC_SOCKET_URL_EDIT, host, 256);
+
+            if (WriteEnvFile(host, user, socket)) {
+              MessageBoxA(hDlg, "Settings saved. Please restart AmiBroker for changes to take effect.", "Config Saved", MB_OK | MB_ICONINFORMATION);
+              EndDialog(hDlg, LOWORD(wParam));
+            } else {
+              MessageBoxA(hDlg, "ERROR: Could not write to .env file. Check folder permissions.", "Error", MB_OK | MB_ICONERROR);
+            }
+          }
           return (INT_PTR)TRUE;
         case IDCANCEL:
           EndDialog(hDlg, LOWORD(wParam));

@@ -222,7 +222,7 @@ void WsClient::run() {
       m_isConnected = true;
       if (m_pStatus) *m_pStatus = STATE_CONNECTED;
       m_ws->sendBinary(buildHandshakeBinary(m_userId, wskey));
-      LogWS("[WS] Handshake binary sent.");
+      LogWS("[WS] Handshake sent.");
       m_ws->sendBinary(buildPingBinary());
       LogWS("[WS] Sending first ping..");
 

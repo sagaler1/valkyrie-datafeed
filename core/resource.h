@@ -1,19 +1,23 @@
 // Microsoft Visual C++ generated include file.
 // Used by resource.rc
 
-// --- Menu Item untuk Status Koneksi (di rentang aman) ---
+// ---- Menu Item untuk Status Koneksi (di rentang aman)
 #define ID_STATUS_CONNECT           60001
 #define ID_STATUS_DISCONNECT        60002
 #define ID_STATUS_CONFIGURE         60004
 
-// --- Menu Resource Utama ---
+// ---- Menu Resource Utama ---
 #define IDR_STATUS_MENU             101
 
-// --- Dialog Retrieve Symbols dan Kontrolnya ---
+// ---- Dialog Retrieve Symbols dan Kontrolnya
 // Kita reuse IDD_EOD_BACKFILL (102) atau naikkan satu ID baru
 #define IDD_CONFIGURE_PLUGIN        104
 #define IDC_RETRIEVE_BUTTON         1005
 #define IDC_STATUS_SYMBOL           1006
+// ---- Credential
+#define IDC_HOST_EDIT               1007
+#define IDC_USERNAME_EDIT           1008
+#define IDC_SOCKET_URL_EDIT         1009
 
 // Next default values for new objects
 // 

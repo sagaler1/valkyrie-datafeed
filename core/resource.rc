@@ -15,20 +15,23 @@ IDR_STATUS_MENU MENU
 }
 
 // --- Dialog untuk Configure Plugin (Retrieve Symbols) ---
-IDD_CONFIGURE_PLUGIN DIALOGEX 0, 0, 300, 150
+IDD_CONFIGURE_PLUGIN DIALOGEX 0, 0, 287, 131
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Valkyrie Datafeed Configuration"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    LTEXT           "Symbol Management:",-1,7,10,150,8
-    // Tombol utama untuk Retrieve Symbols
-    DEFPUSHBUTTON   "Retrieve ALL Symbols (IPO/Update Metadata)",IDC_RETRIEVE_BUTTON,7,25,286,20
-    
-    // Status Text
-    LTEXT           "Ready to fetch. This may take up to 20 seconds.",IDC_STATUS_SYMBOL,7,55,286,40,SS_SUNKEN
-    
-    // Tombol Close standar
-    PUSHBUTTON      "Close",IDCANCEL,243,129,50,14
+  EDITTEXT        IDC_HOST_EDIT,75,7,123,14,ES_AUTOHSCROLL
+  EDITTEXT        IDC_SOCKET_URL_EDIT,75,26,123,14,ES_AUTOHSCROLL
+  EDITTEXT        IDC_USERNAME_EDIT,120,46,78,14,ES_AUTOHSCROLL | ES_NUMBER
+  LTEXT           "Websocket:",-1,8,28,39,8
+  LTEXT           "User ID",-1,8,50,25,8
+  LTEXT           "API Server:",-1,8,9,38,8
+  DEFPUSHBUTTON   "Save",IDOK,218,7,54,14
+  PUSHBUTTON      "Close",IDCANCEL,218,27,54,14
+  GROUPBOX        "Retrieve Symbol from API",-1,7,74,273,40
+  PUSHBUTTON      "Retrieve",IDC_RETRIEVE_BUTTON,12,87,81,16
+  LTEXT           "Ready to fetch...",IDC_STATUS_SYMBOL,103,88,169,14,0,WS_EX_STATICEDGE
+
 END
 
 // --- Version Information ---

@@ -109,7 +109,7 @@ PLUGINAPI int GetStatus(struct PluginStatus* status) {
   switch (current_status) {
       case STATE_IDLE:
           status->nStatusCode = 0x10000000;
-          strcpy_s(status->szShortMessage, "IDLE");
+          strcpy_s(status->szShortMessage, "API");
           strcpy_s(status->szLongMessage, "Disconnected. Right-click to connect.");
           status->clrStatusColor = RGB(255, 128, 0);
           break;
@@ -122,7 +122,7 @@ PLUGINAPI int GetStatus(struct PluginStatus* status) {
           break;
       case STATE_CONNECTED:
           status->nStatusCode = 0x00000000;
-          strcpy_s(status->szShortMessage, "OK");
+          strcpy_s(status->szShortMessage, "LIVE");
           strcpy_s(status->szLongMessage, "Connected to WebSocket.");
           status->clrStatusColor = RGB(0, 255, 0);
           break;
