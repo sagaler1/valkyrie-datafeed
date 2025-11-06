@@ -13,6 +13,7 @@
 #include <map>
 #include <atomic>
 #include <set>
+#include <condition_variable>
 
 extern std::unique_ptr<WsClient> g_wsClient;
 extern HWND g_hAmiBrokerWnd;
@@ -29,7 +30,9 @@ struct FetchRequest {
   std::vector<Candle> preload;
 };
 
-static std::mutex g_fetchQueueMtx;
+// --- MUTEX & CV Definition (.h)
+std::mutex g_fetchQueueMtx;
+std::condition_variable g_fetchQueueCV;
 static std::map<std::string, FetchRequest> g_fetchQueue;
 
 void LogBridge(const std::string& msg) {
@@ -87,23 +90,37 @@ void fetchAndCache(std::string symbol, std::string from_date, std::string to_dat
 }
 
 void ProcessFetchQueue() {
+  // ---- Fix Main Loop: Worker akan tidur sampai ada kerjaan
   while (g_bWorkerThreadRun) {
     std::string symbol_to_fetch;
     FetchRequest request;
 
-    // 1. Cek antrian
+    // 1. Ambil lock & tunggu kerjaan
     {
-      std::lock_guard<std::mutex> lock(g_fetchQueueMtx);
+      std::unique_lock<std::mutex> lock(g_fetchQueueMtx);
+      // Main changes:
+      // Worker akan 'tidur' sampai
+      // 1. Antrian (g_fetchQueue) udah tidak kosong, OR
+      // 2. g_bWorkerThreadRun == false
+      g_fetchQueueCV.wait(lock, [&] {
+        return !g_fetchQueue.empty() || !g_bWorkerThreadRun;
+      });
+
+      // Jika worker bangun tapi disuruh stop, maka langsung keluar
+      if (!g_bWorkerThreadRun) {
+        break;
+      }
+
+      // Kalau dia bangun karena ada pekerjaan, ambil kerjaannya
       if (!g_fetchQueue.empty()) {
-        // Ambil satu request dari antrian
         auto it = g_fetchQueue.begin();
         symbol_to_fetch = it->first;
-        request = std::move(it->second);  // Pindahkan datanya
+        request = std::move(it->second);
         g_fetchQueue.erase(it);
       }
-    } // Mutex release
+    } // Lock ter-release disini
 
-    // 2. Jika ada symbol, panggil fetchAndCache()
+    // 2. Proses kerjaan (DI LUAR LOCK)
     if (!symbol_to_fetch.empty()) {
       LogBridge("Worker processing: " + symbol_to_fetch);
       // Panggil fungsi yang sudah ada, tapi secara SERIAL
@@ -111,10 +128,7 @@ void ProcessFetchQueue() {
       
       // Beri jeda sedikit antar API call
       std::this_thread::sleep_for(std::chrono::milliseconds(400)); // Jeda 400ms
-    } else {
-      // Jika antrian kosong, tidur agak lama
-      std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    }
+    } 
   }
   LogBridge("Worker thread shutting down.");
 }
@@ -160,7 +174,7 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
     }
 
     if (!is_already_fetching_or_queued) {
-      // --- PRELOAD from AmiBroker ---
+      // ---- PRELOAD from AmiBroker ----
       std::vector<Candle> preload;
       if (nLastValid >= 0) {
         preload.reserve(nLastValid + 1);
@@ -200,7 +214,7 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
         from_date = timePointToString(now - std::chrono::hours(24 * lookback_days));
       }
 
-      // --- PERUBAHAN UTAMA: Masukkan ke Antrian ---
+      // ---- PERUBAHAN UTAMA: Masukkan ke Antrian ---
       {
         std::lock_guard<std::mutex> lock(g_fetchQueueMtx);
         FetchRequest req;
@@ -210,6 +224,9 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
         g_fetchQueue[symbol] = std::move(req); // Pake std::move
         LogBridge("Queued " + symbol + " for fetching.");
       }
+
+      // ---- BANGUNKAN WORKER-NYA!
+      g_fetchQueueCV.notify_one();
     }
 
       // Kembalikan data preload (jika ada) agar chart tidak kosong

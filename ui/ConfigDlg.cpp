@@ -12,11 +12,11 @@
 #include <comdef.h>
 #include <fstream>
 #include <vector>
-#include <Shlwapi.h>
-#pragma comment(lib, "Shlwapi.lib")
+#include <filesystem>
 
 #define MAX_SYMBOL_LEN 48
 extern HWND g_hAmiBrokerWnd;
+namespace fs = std::filesystem;
 
 // ---- Utility Helpers ----
 static void LogOLE(const std::string& msg) {
@@ -36,7 +36,6 @@ static std::wstring to_wstring_ascii(const std::string& s) {
 }
 
 // ---- Core OLE Logic ----
-
 static IDispatch* GetBrokerApplication() {
   CLSID clsid;
   if (FAILED(CLSIDFromProgID(L"Broker.Application", &clsid))) return nullptr;
@@ -224,14 +223,15 @@ static bool AddSymbolsViaOLEBatch(HWND hDlg, const std::vector<SymbolInfo>& list
     return true;
 }
 
-
 // ---- Fungsi untuk mendapatkan path .env
 static std::string GetEnvFilePath() {
   char exePath[MAX_PATH];
+  GetModuleFileNameA(NULL, exePath, MAX_PATH);      // 1. Get full path Amibroker
 
-  GetModuleFileNameA(NULL, exePath, MAX_PATH);    // 1. Get full path Amibroker
-  PathRemoveFileSpecA(exePath);                   // 2. Remove 'Amibroker.exe'
-  return std::string(exePath) + "\\.env";         // 3. Path + ".env"
+  fs::path p = exePath;
+  fs::path envPath = p.parent_path() / ".env";
+
+  return envPath.string();                          // 2. Konversi balik ke std::string
 }
 
 // ---- Fungsi write file .env

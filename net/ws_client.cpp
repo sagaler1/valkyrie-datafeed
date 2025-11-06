@@ -61,98 +61,98 @@ static IDispatch* GetStocksCollection(IDispatch* pApp) {
 
 // ---- Dapatkan symbols dari DB ----
 std::vector<std::string> WsClient::getDBSymbols() {
-    std::vector<std::string> symbols;
-    CoInitialize(NULL);
-    LogWS("[OLE] CoInitialize OK. Fetching DB symbols...");
+  std::vector<std::string> symbols;
+  CoInitialize(NULL);
+  LogWS("[OLE] CoInitialize OK. Fetching DB symbols...");
 
-    IDispatch* pApp = GetBrokerApplication();
-    if (!pApp) {
-        LogWS("[OLE] ERROR: Cannot create Broker.Application instance.");
-        CoUninitialize();
-        return symbols;
+  IDispatch* pApp = GetBrokerApplication();
+  if (!pApp) {
+    LogWS("[OLE] ERROR: Cannot create Broker.Application instance.");
+    CoUninitialize();
+    return symbols;
+  }
+
+  IDispatch* pStocks = GetStocksCollection(pApp);
+  if (!pStocks) {
+    LogWS("[OLE] ERROR: Cannot get Stocks collection.");
+    pApp->Release();
+    CoUninitialize();
+    return symbols;
+  }
+
+  // 1. Get Stocks.Count
+  OLECHAR* propCount = L"Count";
+  DISPID dispidCount;
+  long count = 0;
+  if (SUCCEEDED(pStocks->GetIDsOfNames(IID_NULL, &propCount, 1, LOCALE_USER_DEFAULT, &dispidCount))) {
+    VARIANT result;
+    VariantInit(&result);
+    DISPPARAMS noArgs = { nullptr, nullptr, 0, 0 };
+    if (SUCCEEDED(pStocks->Invoke(dispidCount, IID_NULL, LOCALE_USER_DEFAULT, DISPATCH_PROPERTYGET, &noArgs, &result, NULL, NULL))) {
+      count = result.lVal;
     }
+  }
 
-    IDispatch* pStocks = GetStocksCollection(pApp);
-    if (!pStocks) {
-        LogWS("[OLE] ERROR: Cannot get Stocks collection.");
-        pApp->Release();
-        CoUninitialize();
-        return symbols;
-    }
-
-    // 1. Get Stocks.Count
-    OLECHAR* propCount = L"Count";
-    DISPID dispidCount;
-    long count = 0;
-    if (SUCCEEDED(pStocks->GetIDsOfNames(IID_NULL, &propCount, 1, LOCALE_USER_DEFAULT, &dispidCount))) {
-        VARIANT result;
-        VariantInit(&result);
-        DISPPARAMS noArgs = { nullptr, nullptr, 0, 0 };
-        if (SUCCEEDED(pStocks->Invoke(dispidCount, IID_NULL, LOCALE_USER_DEFAULT, DISPATCH_PROPERTYGET, &noArgs, &result, NULL, NULL))) {
-            count = result.lVal;
-        }
-    }
-
-    if (count == 0) {
-        LogWS("[OLE] Stocks collection has 0 items.");
-        pStocks->Release();
-        pApp->Release();
-        CoUninitialize();
-        return symbols;
-    }
-
-    // 2. Loop dan Get Stocks.Item(i).Ticker
-    symbols.reserve(count);
-    for (long i = 0; i < count; i++) {
-        IDispatch* pStock = nullptr;
-        
-        // --- Get Stocks.Item(i) ---
-        OLECHAR* methodItem = L"Item";
-        DISPID dispidItem;
-        if (FAILED(pStocks->GetIDsOfNames(IID_NULL, &methodItem, 1, LOCALE_USER_DEFAULT, &dispidItem))) continue;
-
-        VARIANTARG arg;
-        VariantInit(&arg);
-        arg.vt = VT_I4; // Tipe argumen adalah Long (32-bit int)
-        arg.lVal = i;
-        DISPPARAMS params = { &arg, nullptr, 1, 0 };
-        VARIANT resultStock;
-        VariantInit(&resultStock);
-        
-        // Panggil 'Item' sebagai PROPERTYGET (bukan METHOD)
-        if (SUCCEEDED(pStocks->Invoke(dispidItem, IID_NULL, LOCALE_USER_DEFAULT, DISPATCH_PROPERTYGET, &params, &resultStock, NULL, NULL)) && resultStock.vt == VT_DISPATCH) {
-            pStock = resultStock.pdispVal;
-        } else {
-            continue; // Gagal dapet stock item
-        }
-
-        // --- Get Stock.Ticker ---
-        OLECHAR* propTicker = L"Ticker";
-        DISPID dispidTicker;
-        if (SUCCEEDED(pStock->GetIDsOfNames(IID_NULL, &propTicker, 1, LOCALE_USER_DEFAULT, &dispidTicker))) {
-            VARIANT resultTicker;
-            VariantInit(&resultTicker);
-            DISPPARAMS noArgs = { nullptr, nullptr, 0, 0 };
-            if (SUCCEEDED(pStock->Invoke(dispidTicker, IID_NULL, LOCALE_USER_DEFAULT, DISPATCH_PROPERTYGET, &noArgs, &resultTicker, NULL, NULL)) && resultTicker.vt == VT_BSTR) {
-                
-                // Convert BSTR (wide string) to std::string (narrow)
-                _bstr_t b(resultTicker.bstrVal, false); // 'false' = jangan copy, cuma wrap
-                std::string ticker = (const char*)b;
-                if (!ticker.empty()) {
-                    symbols.push_back(ticker);
-                }
-            }
-            VariantClear(&resultTicker);
-        }
-        
-        pStock->Release();
-    }
-
-    LogWS("[OLE] Finished. Found " + std::to_string(symbols.size()) + " symbols in DB.");
+  if (count == 0) {
+    LogWS("[OLE] Stocks collection has 0 items.");
     pStocks->Release();
     pApp->Release();
     CoUninitialize();
     return symbols;
+  }
+
+  // 2. Loop dan Get Stocks.Item(i).Ticker
+  symbols.reserve(count);
+  for (long i = 0; i < count; i++) {
+    IDispatch* pStock = nullptr;
+    
+    // --- Get Stocks.Item(i) ---
+    OLECHAR* methodItem = L"Item";
+    DISPID dispidItem;
+    if (FAILED(pStocks->GetIDsOfNames(IID_NULL, &methodItem, 1, LOCALE_USER_DEFAULT, &dispidItem))) continue;
+
+    VARIANTARG arg;
+    VariantInit(&arg);
+    arg.vt = VT_I4; // Tipe argumen adalah Long (32-bit int)
+    arg.lVal = i;
+    DISPPARAMS params = { &arg, nullptr, 1, 0 };
+    VARIANT resultStock;
+    VariantInit(&resultStock);
+    
+    // Panggil 'Item' sebagai PROPERTYGET (bukan METHOD)
+    if (SUCCEEDED(pStocks->Invoke(dispidItem, IID_NULL, LOCALE_USER_DEFAULT, DISPATCH_PROPERTYGET, &params, &resultStock, NULL, NULL)) && resultStock.vt == VT_DISPATCH) {
+      pStock = resultStock.pdispVal;
+    } else {
+      continue; // Gagal dapet stock item
+    }
+
+    // --- Get Stock.Ticker ---
+    OLECHAR* propTicker = L"Ticker";
+    DISPID dispidTicker;
+    if (SUCCEEDED(pStock->GetIDsOfNames(IID_NULL, &propTicker, 1, LOCALE_USER_DEFAULT, &dispidTicker))) {
+      VARIANT resultTicker;
+      VariantInit(&resultTicker);
+      DISPPARAMS noArgs = { nullptr, nullptr, 0, 0 };
+      if (SUCCEEDED(pStock->Invoke(dispidTicker, IID_NULL, LOCALE_USER_DEFAULT, DISPATCH_PROPERTYGET, &noArgs, &resultTicker, NULL, NULL)) && resultTicker.vt == VT_BSTR) {
+          
+        // Convert BSTR (wide string) to std::string (narrow)
+        _bstr_t b(resultTicker.bstrVal, false); // 'false' = jangan copy, cuma wrap
+        std::string ticker = (const char*)b;
+        if (!ticker.empty()) {
+          symbols.push_back(ticker);
+        }
+      }
+      VariantClear(&resultTicker);
+    }
+    
+    pStock->Release();
+  }
+
+  LogWS("[OLE] Finished. Found " + std::to_string(symbols.size()) + " symbols in DB.");
+  pStocks->Release();
+  pApp->Release();
+  CoUninitialize();
+  return symbols;
 }
 
 // --- Implementasi WsClient ---
@@ -214,7 +214,7 @@ void WsClient::run() {
 
   // ---- THROTTLING ----
   auto last_ui_update = std::chrono::steady_clock::now();
-  const auto ui_update_interval = std::chrono::milliseconds(250); // 4x per detik
+  const auto ui_update_interval = std::chrono::milliseconds(100); // 4x per detik
 
   m_ws->setOnMessageCallback([&](const ix::WebSocketMessagePtr& msg) {
     if (msg->type == ix::WebSocketMessageType::Open) {
