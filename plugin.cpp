@@ -42,7 +42,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserv
 PLUGINAPI int GetPluginInfo(struct PluginInfo* pInfo) {
   pInfo->nStructSize = sizeof(PluginInfo);
   pInfo->nType = PLUGIN_TYPE_DATA;
-  pInfo->nVersion = 100; // v0.1.0
+  pInfo->nVersion = 10000; // v0.1.0
   pInfo->nIDCode = PIDCODE('V', 'D', 'T', 'F');
   strcpy_s(pInfo->szName, "Valkyrie Datafeed");
   strcpy_s(pInfo->szVendor, "Dhani");

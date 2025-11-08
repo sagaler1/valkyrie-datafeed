@@ -61,23 +61,19 @@ void fetchAndCache(std::string symbol, std::string from_date, std::string to_dat
   std::vector<Candle> new_candles = fetchHistorical(symbol, from_date, to_date);
   LogIfDebug("Async fetch finished. Got " + std::to_string(new_candles.size()) + " bars.");
 
-  {
-    std::lock_guard<std::mutex> dslock(g_dataStoreMtx);
+  // Merge existing preload candles from AmiBroker (jika tersedia)
+  if (!existing_candles.empty()) {
+    gDataStore.mergeHistorical(symbol, existing_candles);
+  }
 
-    // Merge existing preload candles from AmiBroker (jika tersedia)
-    if (!existing_candles.empty()) {
-      gDataStore.mergeHistorical(symbol, existing_candles);
-    }
+  // Merge new candles dari API
+  if (!new_candles.empty()) {
+    gDataStore.mergeHistorical(symbol, new_candles);
+  }
 
-    // Merge new candles dari API
-    if (!new_candles.empty()) {
-      gDataStore.mergeHistorical(symbol, new_candles);
-    }
-
-    // Jika semua kosong, buat empty cache supaya mark as checked
-    if (existing_candles.empty() && new_candles.empty()) {
-      gDataStore.setHistorical(symbol, {});
-    }
+  // Jika semua kosong, buat empty cache supaya mark as checked
+  if (existing_candles.empty() && new_candles.empty()) {
+    gDataStore.setHistorical(symbol, {});
   }
 
   {
@@ -139,18 +135,11 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
   if (nPeriodicity != PERIODICITY_EOD) return nLastValid + 1;
 
   std::vector<Candle> final_candles;
-  bool hasHist = false;
-  {
-    std::lock_guard<std::mutex> dslock(g_dataStoreMtx);
-    hasHist = gDataStore.hasHistorical(symbol);
-  }
+  bool hasHist = gDataStore.hasHistorical(symbol);
 
   if (hasHist) {
     LogIfDebug("Cache HIT for " + symbol);
-    {
-      std::lock_guard<std::mutex> dslock(g_dataStoreMtx);
-      final_candles = gDataStore.getHistorical(symbol);
-    }
+    final_candles = gDataStore.getHistorical(symbol);
 
     if (g_wsClient && g_wsClient->isConnected()) {
       std::lock_guard<std::mutex> dslock(g_dataStoreMtx);
@@ -230,9 +219,7 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
     }
 
       // Kembalikan data preload (jika ada) agar chart tidak kosong
-      {
-        std::lock_guard<std::mutex> dslock(g_dataStoreMtx);
-        if (!gDataStore.hasHistorical(symbol) && nLastValid >= 0)
+      if (!gDataStore.hasHistorical(symbol) && nLastValid >= 0)
         {
           // Ambil dari antrian (agak boros, tapi aman)
           std::lock_guard<std::mutex> lock(g_fetchQueueMtx);
@@ -242,7 +229,7 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
           }
         }
         final_candles = gDataStore.getHistorical(symbol); // (Mungkin kosong jika nLastValid < 0)
-      }
+        
     } // end cache miss
 
     if (final_candles.empty()) return 0;
