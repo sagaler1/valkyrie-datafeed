@@ -13,7 +13,7 @@
 #include <thread>
 
 // ---- Global Variables ----
-std::unique_ptr<WsClient> g_wsClient;
+std::shared_ptr<WsClient> g_wsClient;
 DataStore gDataStore;
 HWND g_hAmiBrokerWnd = NULL;
 HMODULE g_hDllModule = NULL;                      // DLL handle
@@ -57,7 +57,7 @@ PLUGINAPI int Init(void) {
   icex.dwICC = ICC_DATE_CLASSES;                  // Kita hanya perlu class untuk Date/Time control
   InitCommonControlsEx(&icex);
 
-  g_wsClient = std::make_unique<WsClient>();
+  g_wsClient = std::make_shared<WsClient>();
   g_nStatus = STATE_IDLE;
   return 1;
 }
@@ -221,11 +221,14 @@ PLUGINAPI int Notify(struct PluginNotification* pn) {
       // ---- Menu ----
       switch (selection) {
         case ID_STATUS_CONNECT:
-          if(g_wsClient) {
-            g_nStatus = STATE_CONNECTING;
-            g_wsClient->start(username, api_host + "/api/amibroker/socketkey");
+          {
+            std::shared_ptr<WsClient> wsClient = g_wsClient;    // local copy
+            if(wsClient) {
+              g_nStatus = STATE_CONNECTING;
+              wsClient->start(username, api_host + "/api/amibroker/socketkey");
+            }
+            break;
           }
-          break;
         case ID_STATUS_DISCONNECT:
           if(g_wsClient) {
             g_wsClient->stop();

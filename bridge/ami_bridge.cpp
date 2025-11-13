@@ -3,7 +3,6 @@
 #include "api_client.h"
 #include "ws_client.h"
 #include <windows.h>
-#include <algorithm>
 #include <vector>
 #include <chrono>
 #include <string>
@@ -15,7 +14,7 @@
 #include <set>
 #include <condition_variable>
 
-extern std::unique_ptr<WsClient> g_wsClient;
+extern std::shared_ptr<WsClient> g_wsClient;
 extern HWND g_hAmiBrokerWnd;
 extern std::atomic<bool> g_bWorkerThreadRun;
 
@@ -141,10 +140,14 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
     LogIfDebug("Cache HIT for " + symbol);
     final_candles = gDataStore.getHistorical(symbol);
 
-    if (g_wsClient && g_wsClient->isConnected()) {
-      std::lock_guard<std::mutex> dslock(g_dataStoreMtx);
-      gDataStore.mergeLiveToHistorical(symbol);
-      final_candles = gDataStore.getHistorical(symbol);
+    {
+      std::shared_ptr<WsClient> wsClient = g_wsClient;
+
+      if (wsClient && wsClient->isConnected()) {
+        std::lock_guard<std::mutex> dslock(g_dataStoreMtx);
+        gDataStore.mergeLiveToHistorical(symbol);
+        final_candles = gDataStore.getHistorical(symbol);
+      }
     }
   } else {
     // CACHE MISS
@@ -229,7 +232,7 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
           }
         }
         final_candles = gDataStore.getHistorical(symbol); // (Mungkin kosong jika nLastValid < 0)
-        
+
     } // end cache miss
 
     if (final_candles.empty()) return 0;
