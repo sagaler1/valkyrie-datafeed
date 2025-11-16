@@ -214,7 +214,7 @@ void WsClient::run() {
 
   // ---- THROTTLING ----
   auto last_ui_update = std::chrono::steady_clock::now();
-  const auto ui_update_interval = std::chrono::milliseconds(100); // 4x per detik
+  const auto ui_update_interval = std::chrono::milliseconds(100); // 10x per detik
 
   m_ws->setOnMessageCallback([&](const ix::WebSocketMessagePtr& msg) {
     if (msg->type == ix::WebSocketMessageType::Open) {
@@ -232,14 +232,14 @@ void WsClient::run() {
 
         // LogWS(std::string("[WS] ==> EVENT: Message. Size: " + std::to_string(msg->str.size()) + " bytes"));
         if (!isSubscribed) {
-          // ---- nanopb parser for PongReceive ----
+          // ---- nanopb parser for heartbeat reply ----
           // 1. Buat input stream dari data biner
           pb_istream_t stream = pb_istream_from_buffer(
             reinterpret_cast<const pb_byte_t*>(msg->str.data()),
             msg->str.size()
           );
 
-          // 2. Inisialisasi struct PongReceive
+          // 2. Inisialisasi struct
           PongReceive pong = PongReceive_init_zero;
 
           // 3. Decode pesan
@@ -358,7 +358,7 @@ std::string WsClient::buildHandshakeBinary(const std::string& userId, const std:
   Handshake hs = Handshake_init_zero;
 
   // 2. Siapkan buffer untuk menampung hasil encode
-  // Ukuran buffer bisa diperkirakan. userId(32) + key(128) + overhead protobuf (sekitar 10 bytes)
+  // Ukuran buffer bisa diperkirakan. userId(32) + key(128) + overhead (sekitar 10 bytes)
   uint8_t buffer[200];
 
   // 3. Buat output stream dari buffer
@@ -367,10 +367,10 @@ std::string WsClient::buildHandshakeBinary(const std::string& userId, const std:
   // 4. Salin data dari std::string ke field struct
   // Pakai strncpy biar aman, sesuai max_size di .options
   strncpy_s(hs.userId, userId.c_str(), sizeof(hs.userId) - 1);
-  hs.userId[sizeof(hs.userId) - 1] = '\0'; // Pastikan null-terminated
+  hs.userId[sizeof(hs.userId) - 1] = '\0';    // Pastikan null-terminated!
 
   strncpy_s(hs.key, key.c_str(), sizeof(hs.key) - 1);
-  hs.key[sizeof(hs.key) - 1] = '\0'; // Pastikan null-terminated
+  hs.key[sizeof(hs.key) - 1] = '\0';          // Pastikan null-terminated!
 
   // 5. Proses encoding
   bool status = pb_encode(&stream, Handshake_fields, &hs);
@@ -451,7 +451,7 @@ std::string WsClient::buildSubscribeBinary(const std::string& userId, const std:
     //  break; // Stop menambahkan jika sudah penuh
     // }
 
-    // Cek agar tidak melebihi max_count (PASTIKAN .options UDAH DIUPDATE)
+    // Cek agar tidak melebihi max_count (PASTIKAN .options UDAH DIUPDATE!)
     size_t max_count_arr = (sizeof(sub.subs.livequote) / sizeof(sub.subs.livequote[0]));
     if (sub.subs.livequote_count >= max_count_arr) {
       LogWS("[WS] WARNING: Symbol count exceeds max_count(" + std::to_string(max_count_arr) + ") Truncating list.");

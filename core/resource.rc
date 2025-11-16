@@ -28,7 +28,7 @@ BEGIN
   LTEXT           "API Server:",-1,8,9,38,8
   DEFPUSHBUTTON   "Save",IDOK,218,7,54,14
   PUSHBUTTON      "Close",IDCANCEL,218,27,54,14
-  GROUPBOX        "Retrieve Symbol from API",-1,7,74,273,40
+  GROUPBOX        "Retrieve Symbols",-1,7,74,273,40
   PUSHBUTTON      "Retrieve",IDC_RETRIEVE_BUTTON,12,87,81,16
   LTEXT           "Ready to fetch...",IDC_STATUS_SYMBOL,103,88,169,14,0,WS_EX_STATICEDGE
 

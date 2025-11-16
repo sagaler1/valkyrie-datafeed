@@ -6,6 +6,7 @@
 #include "pluginstate.h"
 #include "config.h"
 #include "ConfigDlg.h"
+#include "extradata/extra_dispatcher.h"
 #include <memory>
 #include <atomic>
 #include <windows.h>
@@ -266,4 +267,16 @@ PLUGINAPI int Configure( LPCTSTR pszPath, struct InfoSite *pSite ) {
 // ---- GetQuotesEx() function is a basic function that all data plugins must export and it is called each time AmiBroker wants to get new quotes ----
 PLUGINAPI int GetQuotesEx(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int nSize, struct Quotation* pQuotes, GQEContext* pContext) {
   return GetQuotesEx_Bridge(pszTicker, nPeriodicity, nLastValid, nSize, pQuotes);
+}
+
+PLUGINAPI AmiVar GetExtraDataEx(LPCTSTR pszTicker, LPCTSTR pszName, ExtraData* pData) {
+  AmiVar var;
+  var.type = VAR_ARRAY;
+
+  float* arr = (float*)pData->pfAlloc(pData->nArraySize * sizeof(float));
+  var.array = arr;
+
+  ExtraDispatcher::Handle(pszTicker, pszName, pData, arr);
+
+  return var;
 }

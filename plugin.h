@@ -310,13 +310,25 @@ struct PluginNotification
 	struct  StockInfo			*pCurrentSINew;
 };
 
+struct ExtraData
+{
+  int nStructSize;
+  int nArraySize;
+  int nPeriodicity;
+  DATE_TIME_INT *anTimestamps;
+  void* ( *pfAlloc )( size_t nSize );
+};
+
+// typedef Variant( * GetExtraDataPtr )( LPCTSTR pszTicker, LPCTSTR pszName, int nArraySize, int nPeriodicity, void * ( *pfAlloc )( size_t nSize ) );
+
 // --- DATA PLUGIN FUNCTIONS ---
 
 // Required modern function
 PLUGINAPI int GetQuotesEx( LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int nSize, struct Quotation *pQuotes, GQEContext *pContext );
+PLUGINAPI AmiVar GetExtraDataEx(LPCTSTR pszTicker, LPCTSTR pszName, ExtraData* pData);
 
 // Optional functions
-PLUGINAPI AmiVar GetExtraData( LPCTSTR pszTicker, LPCTSTR pszName, int nArraySize, int nPeriodicity, void* (*pfAlloc)(unsigned int nSize) );
+// PLUGINAPI AmiVar GetExtraData( LPCTSTR pszTicker, LPCTSTR pszName, int nArraySize, int nPeriodicity, void* (*pfAlloc)(unsigned int nSize) );
 PLUGINAPI int Configure( LPCTSTR pszPath, struct InfoSite *pSite );
 PLUGINAPI struct RecentInfo * GetRecentInfo( LPCTSTR pszTicker );
 PLUGINAPI int GetSymbolLimit( void );

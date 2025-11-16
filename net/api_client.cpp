@@ -1,6 +1,3 @@
-// api_client.cpp
-#include "api_client.h"
-#include "config.h"
 #include <windows.h>
 #include <vector>
 #include <string>
@@ -10,6 +7,8 @@
 #include <mutex>
 #include <stdexcept>
 #include <winhttp.h>
+#include "api_client.h"
+#include "config.h"
 
 // ---- simdjson (ondemand)
 #include <simdjson.h>

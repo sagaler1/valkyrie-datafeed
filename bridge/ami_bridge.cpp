@@ -2,6 +2,8 @@
 #include "data_store.h"
 #include "api_client.h"
 #include "ws_client.h"
+#include "ownership_fetcher.h"
+#include "FinancialFetcher.h"
 #include <windows.h>
 #include <vector>
 #include <chrono>
@@ -22,20 +24,61 @@ static std::mutex g_fetchMtx;
 static std::map<std::string, bool> g_isFetching;
 static std::mutex g_dataStoreMtx;
 
-// ---- FETCH & QUEUE STRUCT ----
-struct FetchRequest {
-  std::string from_date;
-  std::string to_date;
-  std::vector<Candle> preload;
-};
-
 // --- MUTEX & CV Definition (.h)
 std::mutex g_fetchQueueMtx;
 std::condition_variable g_fetchQueueCV;
-static std::map<std::string, FetchRequest> g_fetchQueue;
+static std::map<std::string, FetchTask> g_fetchQueue;
 
-void LogBridge(const std::string& msg) {
-  OutputDebugStringA(("[Bridge] " + msg + "\n").c_str());
+static void LogBridge(const std::string& msg) {
+  SYSTEMTIME t;
+  GetLocalTime(&t);
+  char buf[64];
+  sprintf_s(buf, "[%02d:%02d:%02d.%03d] ", t.wHour, t.wMinute, t.wSecond, t.wMilliseconds);
+  OutputDebugStringA((std::string(buf) + "[Bridge] " + msg + "\n").c_str());
+}
+
+bool QueueFetchTask(FetchTask task) {
+  std::string task_key;
+
+  // Bikin Kunci Unik
+  switch (task.type) {
+    case FetchTaskType::GET_CANDLES:
+      task_key = "CANDLES_" + task.symbol;
+      break;
+    case FetchTaskType::GET_OWNERSHIP_INDIV:
+      task_key = "OWN_INDIV_" + task.symbol;
+      break;
+    case FetchTaskType::GET_OWNERSHIP_CORP:
+      task_key = "OWN_CORP_" + task.symbol;
+      break;
+    case FetchTaskType::GET_FINANCIALS: // <-- TAMBAHIN BLOK INI
+      task_key = "FINANCIALS_" + task.symbol;
+      break;
+  }
+
+  if (task_key.empty()) return false;
+
+  // Cek g_isFetching (Mutex g_fetchMtx)
+  {
+    std::lock_guard<std::mutex> lock(g_fetchMtx);
+    if (g_isFetching.count(task_key)) {
+        return false; // Udah ada yang ngerjain
+    }
+  }
+
+  // Cek g_fetchQueue (Mutex g_fetchQueueMtx)
+  {
+    std::lock_guard<std::mutex> lock(g_fetchQueueMtx);
+    if (g_fetchQueue.count(task_key)) {
+      return false; // Udah ada di antrian
+    }
+    
+    // Kalo aman, baru masukin antrian
+    g_fetchQueue[task_key] = std::move(task);
+    LogBridge("Queued Task: " + task_key);
+    g_fetchQueueCV.notify_one();
+  }
+  return true;
 }
 
 inline void LogIfDebug(const std::string& msg) {
@@ -87,44 +130,67 @@ void fetchAndCache(std::string symbol, std::string from_date, std::string to_dat
 void ProcessFetchQueue() {
   // ---- Fix Main Loop: Worker akan tidur sampai ada kerjaan
   while (g_bWorkerThreadRun) {
-    std::string symbol_to_fetch;
-    FetchRequest request;
+    std::string task_key;
+    FetchTask task;
 
-    // 1. Ambil lock & tunggu kerjaan
     {
       std::unique_lock<std::mutex> lock(g_fetchQueueMtx);
-      // Main changes:
-      // Worker akan 'tidur' sampai
-      // 1. Antrian (g_fetchQueue) udah tidak kosong, OR
-      // 2. g_bWorkerThreadRun == false
       g_fetchQueueCV.wait(lock, [&] {
         return !g_fetchQueue.empty() || !g_bWorkerThreadRun;
       });
 
-      // Jika worker bangun tapi disuruh stop, maka langsung keluar
-      if (!g_bWorkerThreadRun) {
-        break;
-      }
+      if (!g_bWorkerThreadRun) break;
+      if (g_fetchQueue.empty()) continue; 
 
-      // Kalau dia bangun karena ada pekerjaan, ambil kerjaannya
-      if (!g_fetchQueue.empty()) {
-        auto it = g_fetchQueue.begin();
-        symbol_to_fetch = it->first;
-        request = std::move(it->second);
-        g_fetchQueue.erase(it);
-      }
-    } // Lock ter-release disini
-
-    // 2. Proses kerjaan (DI LUAR LOCK)
-    if (!symbol_to_fetch.empty()) {
-      LogBridge("Worker processing: " + symbol_to_fetch);
-      // Panggil fungsi yang sudah ada, tapi secara SERIAL
-      fetchAndCache(symbol_to_fetch, request.from_date, request.to_date, request.preload);
-      
-      // Beri jeda sedikit antar API call
-      std::this_thread::sleep_for(std::chrono::milliseconds(400)); // Jeda 400ms
+      auto it = g_fetchQueue.begin();
+      task_key = it->first;
+      task = std::move(it->second);
+      g_fetchQueue.erase(it);
     } 
+
+    // Tandai "Lagi Dikerjain"
+    {
+      std::lock_guard<std::mutex> lock(g_fetchMtx);
+      g_isFetching[task_key] = true;
+    }
+
+    // --- DISPATCHER UTAMA WORKER ---
+    switch (task.type) {
+      case FetchTaskType::GET_CANDLES:
+        LogBridge("Worker processing CANDLES: " + task.symbol);
+        // fetchAndCache udah ngurus g_isFetching-nya sendiri,
+        // tapi kita harus ubah key-nya
+        fetchAndCache(task.symbol, task.from_date, task.to_date, task.preload); 
+        break;
+
+      case FetchTaskType::GET_OWNERSHIP_INDIV:
+        LogBridge("Worker processing OWN_INDIV: " + task.symbol);
+        OwnershipFetcher::fetch(task.symbol, "Individual");
+        break;
+
+      case FetchTaskType::GET_OWNERSHIP_CORP:
+        LogBridge("Worker processing OWN_CORP: " + task.symbol);
+        OwnershipFetcher::fetch(task.symbol, "Perusahaan");
+        break;
+      
+      case FetchTaskType::GET_FINANCIALS:
+        LogBridge("Worker processing FINANCIALS: " + task.symbol);
+        FinancialFetcher::fetch(task.symbol);
+        break;
+    }
+    
+    // Hapus tanda "Lagi Dikerjain"
+    {
+        std::lock_guard<std::mutex> lock(g_fetchMtx);
+        g_isFetching.erase(task_key);
+    }
+    
+    // Kasih tau AmiBroker buat refresh (penting!)
+    if (g_hAmiBrokerWnd) PostMessage(g_hAmiBrokerWnd, WM_USER_STREAMING_UPDATE, 0, 0);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(400)); // Jeda API
   }
+
   LogBridge("Worker thread shutting down.");
 }
 
@@ -206,15 +272,16 @@ int GetQuotesEx_Bridge(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int 
         from_date = timePointToString(now - std::chrono::hours(24 * lookback_days));
       }
 
-      // ---- PERUBAHAN UTAMA: Masukkan ke Antrian ---
-      {
-        std::lock_guard<std::mutex> lock(g_fetchQueueMtx);
-        FetchRequest req;
-        req.from_date = from_date;
-        req.to_date = to_date;
-        req.preload = std::move(preload);
-        g_fetchQueue[symbol] = std::move(req); // Pake std::move
-        LogBridge("Queued " + symbol + " for fetching.");
+      FetchTask task;
+      task.type = FetchTaskType::GET_CANDLES;
+      task.symbol = symbol;
+      task.from_date = from_date;
+      task.to_date = to_date;
+      task.preload = preload;
+      QueueFetchTask(std::move(task)); // Pake fungsi queuer baru kita
+
+      if (!preload.empty()) {
+        gDataStore.setHistorical(symbol, preload);
       }
 
       // ---- BANGUNKAN WORKER-NYA!
