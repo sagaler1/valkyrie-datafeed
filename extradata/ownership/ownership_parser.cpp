@@ -64,11 +64,11 @@ std::vector<DataPoint> OwnershipParser::parse(const std::string& json, const std
     }
   } 
   catch (const simdjson::simdjson_error &e) {
-    LogParser("SIMDJSON ERROR: " + std::string(e.what()) + ". JSON: " + json.substr(0, 200));
+    LogParser("[Extra Parser] SIMDJSON ERROR: " + std::string(e.what()) + ". JSON: " + json.substr(0, 200));
   } 
   catch (const std::exception &e) {
     // Catch error dari std::stoll kalau gagal
-    LogParser("STD::EXCEPTION ERROR: " + std::string(e.what()));
+    LogParser("[Extra Parser] STD::EXCEPTION ERROR: " + std::string(e.what()));
   }
 
   return out;

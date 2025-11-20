@@ -5,6 +5,7 @@
 #include "extra_dispatcher.h"
 #include "ownership_store.h"
 #include "FinancialStore.h"
+#include "ritel_store.h"
 #include "ami_bridge.h"
 
 // ---- Helper untuk konversi format tanggal AmiBroker (PackDate) ke Unix Timestamp (time_t / detik)
@@ -30,7 +31,7 @@ static DATE_TIME_INT AmiDateToUnix(DATE_TIME_INT amiDate) {
 static std::map<std::string, int> g_financialMetricsMap = {
   // Nama di AFL : item_id
   {"SHAREHOLDERS_NUM", 21334},
-  {"FREE_FLOAT", 21334}
+  {"FREE_FLOAT", 21535}
 };
 
 static void fillOwnership(const std::string& symbol, const std::string& type, ExtraData* pData, float* outArr) {
@@ -92,18 +93,48 @@ static void fillFinancial(const std::string& symbol, int fitem_id, ExtraData* pD
   }
 
   // ---- LOGIKA FORWARD-FILL (Data bisa harian/kuartalan)
-  // (Kita pake logika yang sama persis kayak ownership, ini super robust)
+  // Ambil logika yang sama persis dengan ownership, ini super robust
   size_t data_idx = 0;
   float current_value = EMPTY_VAL; 
   for (int i = 0; i < pData->nArraySize; i++) {
     DATE_TIME_INT barTs_Unix = AmiDateToUnix(pData->anTimestamps[i]);
 
     while (data_idx < data.size() && data[data_idx].ts <= barTs_Unix) {
-      // Cek kalo datanya null (EMPTY_VAL)
+      // Jika datanya null (EMPTY_VAL) ...
       if (data[data_idx].value != EMPTY_VAL) {
-        current_value = data[data_idx].value; // Update nilai terakhir
+        current_value = data[data_idx].value; // Maka update nilai terakhir
       }
-      // Kalo null, kita tidak update current_value,
+      // Jika null, kita tidak update current_value,
+      // jadi dia akan pakai nilai valid terakhir (forward-fill)
+      data_idx++;
+    }
+    outArr[i] = current_value;
+  }
+}
+
+static void fillRitelFlow(const std::string& symbol, ExtraData* pData, float* outArr) {
+  auto data = RitelStore::get(symbol);
+  
+  if (data.empty()) {
+    FetchTask task;
+    task.symbol = symbol;
+    task.type = FetchTaskType::GET_RITEL_FLOW;
+    QueueFetchTask(std::move(task));
+    for (int i = 0; i < pData->nArraySize; i++) outArr[i] = EMPTY_VAL;
+    return;
+  }
+
+  size_t data_idx = 0;
+  float current_value = EMPTY_VAL; 
+  for (int i = 0; i < pData->nArraySize; i++) {
+    DATE_TIME_INT barTs_Unix = AmiDateToUnix(pData->anTimestamps[i]);
+
+    while (data_idx < data.size() && data[data_idx].ts <= barTs_Unix) {
+      // Jika datanya null (EMPTY_VAL) ...
+      if (data[data_idx].value != EMPTY_VAL) {
+        current_value = data[data_idx].value; // Maka update nilai terakhir
+      }
+      // Jika null, kita tidak update current_value,
       // jadi dia akan pakai nilai valid terakhir (forward-fill)
       data_idx++;
     }
@@ -129,6 +160,10 @@ void ExtraDispatcher::Handle(LPCTSTR pszTicker, LPCTSTR pszName, ExtraData* pDat
     int fitem_id = g_financialMetricsMap.at(field);
     fillFinancial(sym, fitem_id, pData, outArr);
     return;
+  }
+
+  if (field == "RITEL_FLOW") {
+    return fillRitelFlow(sym, pData, outArr);
   }
 
   // Fallback, isi semua pake EMPTY

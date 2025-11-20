@@ -4,6 +4,7 @@
 #include "ws_client.h"
 #include "ownership_fetcher.h"
 #include "FinancialFetcher.h"
+#include "ritel_fetcher.h"
 #include <windows.h>
 #include <vector>
 #include <chrono>
@@ -51,8 +52,11 @@ bool QueueFetchTask(FetchTask task) {
     case FetchTaskType::GET_OWNERSHIP_CORP:
       task_key = "OWN_CORP_" + task.symbol;
       break;
-    case FetchTaskType::GET_FINANCIALS: // <-- TAMBAHIN BLOK INI
+    case FetchTaskType::GET_FINANCIALS:
       task_key = "FINANCIALS_" + task.symbol;
+      break;
+    case FetchTaskType::GET_RITEL_FLOW:
+      task_key = "RITEL_" + task.symbol;
       break;
   }
 
@@ -176,6 +180,11 @@ void ProcessFetchQueue() {
       case FetchTaskType::GET_FINANCIALS:
         LogBridge("Worker processing FINANCIALS: " + task.symbol);
         FinancialFetcher::fetch(task.symbol);
+        break;
+      
+      case FetchTaskType::GET_RITEL_FLOW:
+        LogBridge("Worker processing RITEL_FLOW: " + task.symbol);
+        RitelFetcher::fetch(task.symbol);
         break;
     }
     

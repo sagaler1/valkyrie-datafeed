@@ -13,7 +13,8 @@ enum class FetchTaskType {
     GET_CANDLES,
     GET_OWNERSHIP_INDIV,
     GET_OWNERSHIP_CORP,
-    GET_FINANCIALS
+    GET_FINANCIALS,
+    GET_RITEL_FLOW
 };
 
 // 2. Struct Tugas Generik
