@@ -13,6 +13,11 @@
 /CMakeCache.txt
 *.cmake
 
+# Extradata
+/extradata/financial/
+/extradata/ownership/
+/extradata/ritelflow/
+
 # editor cache
 .zed/
 .cache/*
@@ -79,6 +84,7 @@ compile_commands.json
 *.bak
 *.swp
 *.old
+*.zip
 *~
 
 # macOS / Windows file junk

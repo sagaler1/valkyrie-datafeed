@@ -58,6 +58,9 @@ bool QueueFetchTask(FetchTask task) {
     case FetchTaskType::GET_RITEL_FLOW:
       task_key = "RITEL_" + task.symbol;
       break;
+    case FetchTaskType::GET_BROKER_FLOW:
+      task_key = "BROKER_" + task.extra_param + "_" + task.symbol;  // Buat key unik biar nggak tabrakan antrian
+      break;
   }
 
   if (task_key.empty()) return false;
@@ -185,6 +188,11 @@ void ProcessFetchQueue() {
       case FetchTaskType::GET_RITEL_FLOW:
         LogBridge("Worker processing RITEL_FLOW: " + task.symbol);
         RitelFetcher::fetch(task.symbol);
+        break;
+
+      case FetchTaskType::GET_BROKER_FLOW:
+        LogBridge("Worker processing BROKER_FLOW (" + task.extra_param + "): " + task.symbol);
+        RitelFetcher::fetch(task.symbol, task.extra_param);   // Panggil fetcher pakai parameter broker
         break;
     }
     

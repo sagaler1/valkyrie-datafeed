@@ -82,7 +82,6 @@ std::string WinHttpGetData( const std::string& url) {
   // Set timeout (20 detik)
   DWORD dwTimeout = 20000; // 20000 ms
   if (hRequest) WinHttpSetOption(hRequest, WINHTTP_OPTION_CONNECT_TIMEOUT, &dwTimeout, sizeof(dwTimeout));
-  if (hRequest) WinHttpSetOption(hRequest, WINHTTP_OPTION_RECEIVE_TIMEOUT, &dwTimeout, sizeof(dwTimeout));
 
   if (hRequest) {
     // 5. WinHttpSendRequest

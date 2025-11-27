@@ -14,7 +14,8 @@ enum class FetchTaskType {
     GET_OWNERSHIP_INDIV,
     GET_OWNERSHIP_CORP,
     GET_FINANCIALS,
-    GET_RITEL_FLOW
+    GET_RITEL_FLOW,
+    GET_BROKER_FLOW
 };
 
 // 2. Struct Tugas Generik
@@ -22,13 +23,13 @@ struct FetchTask {
   FetchTaskType type;
   std::string symbol;
   
-  // --- Khusus untuk GET_CANDLES ---
+  // ----- Khusus untuk GET_CANDLES
   std::string from_date;
   std::string to_date;
   std::vector<Candle> preload;
 
-    // --- Khusus untuk GET_FINANCIALS (Fase 2) ---
-    // int fitem_id; 
+  // ---- Param lain 
+  std::string extra_param;
 };
 
 // ---- Worker Thread 2

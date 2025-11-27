@@ -31,8 +31,16 @@ static DATE_TIME_INT AmiDateToUnix(DATE_TIME_INT amiDate) {
 static std::map<std::string, int> g_financialMetricsMap = {
   // Nama di AFL : item_id
   {"SHAREHOLDERS_NUM", 21334},
-  {"FREE_FLOAT", 21535}
+  {"FREE_FLOAT", 21535},
+  {"ROE_TTM", 1461},
+  {"CURRENT_PBV", 2896},
+  {"EPS_QUARTER", 1474},
+  {"PTBV_QUARTER",1516},
 };
+
+bool startsWith(const std::string& fullString, const std::string& prefix) {
+  return fullString.rfind(prefix, 0) == 0;
+}
 
 static void fillOwnership(const std::string& symbol, const std::string& type, ExtraData* pData, float* outArr) {
   auto data = OwnershipStore::get(symbol, type);
@@ -142,9 +150,54 @@ static void fillRitelFlow(const std::string& symbol, ExtraData* pData, float* ou
   }
 }
 
+static void fillSpecificBroker(const std::string& symbol, const std::string& brokerCode, ExtraData* pData, float* outArr) {
+  // Kuncinya di Store adalah "SYMBOL_BROKER" (sesuai fetcher)
+  std::string cacheKey = symbol + "_" + brokerCode;
+  auto data = RitelStore::get(cacheKey);
+  
+  if (data.empty()) {
+    FetchTask task;
+    task.symbol = symbol;
+    task.type = FetchTaskType::GET_BROKER_FLOW;
+    task.extra_param = brokerCode; // <-- Simpan kode broker di sini
+    QueueFetchTask(std::move(task));
+    for (int i = 0; i < pData->nArraySize; i++) outArr[i] = EMPTY_VAL;
+    return ;
+  }
+
+  size_t data_idx = 0;
+  float current_value = EMPTY_VAL; 
+  for (int i = 0; i < pData->nArraySize; i++) {
+    DATE_TIME_INT barTs_Unix = AmiDateToUnix(pData->anTimestamps[i]);
+
+    while (data_idx < data.size() && data[data_idx].ts <= barTs_Unix) {
+      // Jika datanya null (EMPTY_VAL) ...
+      if (data[data_idx].value != EMPTY_VAL) {
+        current_value = data[data_idx].value; // Maka update nilai terakhir
+      }
+      // Jika null, kita tidak update current_value,
+      // jadi dia akan pakai nilai valid terakhir (forward-fill)
+      data_idx++;
+    }
+    outArr[i] = current_value;
+  }
+}
+
 void ExtraDispatcher::Handle(LPCTSTR pszTicker, LPCTSTR pszName, ExtraData* pData, float* outArr) {
   std::string sym(pszTicker);
   std::string field(pszName);
+
+  // --- DYNAMIC DISPATCHER ---
+  // Cek apakah request dimulai dengan "BROKERFLOW_"
+  std::string prefix = "BROKERFLOW_";
+  if (startsWith(field, prefix)) {
+    // Ambil string setelah underscore (contoh: "XL" dari "BROKERFLOW_XL")
+    std::string brokerCode = field.substr(prefix.length());
+    
+    if (!brokerCode.empty()) {
+      return fillSpecificBroker(sym, brokerCode, pData, outArr);
+    }
+  }
 
   if (field == "OWN_INDIV") {
     fillOwnership(sym, "Individual", pData, outArr);
