@@ -14,9 +14,9 @@
 *.cmake
 
 # Extradata
-/extradata/financial/
-/extradata/ownership/
-/extradata/ritelflow/
+# /extradata/financial/
+# /extradata/ownership/
+# /extradata/ritelflow/
 
 # editor cache
 .zed/
