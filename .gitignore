@@ -52,8 +52,8 @@ compile_commands.json
 
 # Auto-generated files (Protobuf, etc.)
 *.pb.cc
-*.pb.c
-*.pb.h
+# *.pb.c
+# *.pb.h
 *.proto
 
 # Local environment or secret files
