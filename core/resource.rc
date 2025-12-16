@@ -10,11 +10,13 @@ IDR_STATUS_MENU MENU
     MENUITEM "Connect", ID_STATUS_CONNECT
     MENUITEM "Disconnect", ID_STATUS_DISCONNECT
     MENUITEM SEPARATOR
+    MENUITEM "Show Orderbook", ID_MENU_SHOW_ORDERBOOK
+    MENUITEM SEPARATOR
     MENUITEM "Configure...", ID_STATUS_CONFIGURE
   }
 }
 
-// --- Dialog untuk Configure Plugin (Retrieve Symbols) ---
+// ---- Dialog untuk Configure Plugin (Retrieve Symbols)
 IDD_CONFIGURE_PLUGIN DIALOGEX 0, 0, 287, 131
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Valkyrie Datafeed Configuration"
@@ -34,7 +36,7 @@ BEGIN
 
 END
 
-// --- Version Information ---
+// ---- Version Information
 VS_VERSION_INFO VERSIONINFO
  FILEVERSION    1,0,0,1  // Major, minor, patch, build
  PRODUCTVERSION 1,0,0,1
@@ -69,5 +71,17 @@ BEGIN
         // Info translasi (cocokkan dengan block StringFileInfo)
         VALUE "Translation", 0x409, 1252 
     END
+END
+
+// ---- Orderbook Dialog
+IDD_ORDERBOOK_DIALOG DIALOGEX 0, 0, 320, 200
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+EXSTYLE WS_EX_TOOLWINDOW | WS_EX_TOPMOST  // WS_EX_TOPMOST -> Always On Top!
+CAPTION "Orderbook"
+FONT 8, "Arial", 700, 0, 0x1
+BEGIN
+  LTEXT           "Symbol",IDC_STATIC_SYMBOL,7,7,50,12,SS_CENTERIMAGE
+  CONTROL         "",IDC_LIST_BID,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,7,25,150,168
+  CONTROL         "",IDC_LIST_OFFER,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,163,25,150,168
 END
 

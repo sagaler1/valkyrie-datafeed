@@ -10,19 +10,19 @@
 #endif
 
 /* Struct definitions */
-typedef struct _LiveFeedSub {
+typedef struct _Orderbook {
     pb_size_t orderbook_count;
     char orderbook[5][16];
     pb_size_t livequote_count;
     char livequote[5][16]; /* daftar simbol yang akan disubscribe */
-} LiveFeedSub;
+} Orderbook;
 
-typedef struct _SymbolSubscribe {
+typedef struct _OrderbookSubscribe {
     char userId[32]; /* ID pengguna */
     bool has_subs;
-    LiveFeedSub subs; /* daftar livequote */
+    Orderbook subs; /* daftar livequote */
     char key[128]; /* wskey */
-} SymbolSubscribe;
+} OrderbookSubscribe;
 
 
 #ifdef __cplusplus
@@ -30,44 +30,44 @@ extern "C" {
 #endif
 
 /* Initializer values for message structs */
-#define LiveFeedSub_init_default                 {0, {"", "", "", "", ""}, 0, {"", "", "", "", ""}}
-#define SymbolSubscribe_init_default             {"", false, LiveFeedSub_init_default, ""}
-#define LiveFeedSub_init_zero                    {0, {"", "", "", "", ""}, 0, {"", "", "", "", ""}}
-#define SymbolSubscribe_init_zero                {"", false, LiveFeedSub_init_zero, ""}
+#define Orderbook_init_default                   {0, {"", "", "", "", ""}, 0, {"", "", "", "", ""}}
+#define OrderbookSubscribe_init_default          {"", false, Orderbook_init_default, ""}
+#define Orderbook_init_zero                      {0, {"", "", "", "", ""}, 0, {"", "", "", "", ""}}
+#define OrderbookSubscribe_init_zero             {"", false, Orderbook_init_zero, ""}
 
 /* Field tags (for use in manual encoding/decoding) */
-#define LiveFeedSub_orderbook_tag                2
-#define LiveFeedSub_livequote_tag                6
-#define SymbolSubscribe_userId_tag               1
-#define SymbolSubscribe_subs_tag                 2
-#define SymbolSubscribe_key_tag                  3
+#define Orderbook_orderbook_tag                  2
+#define Orderbook_livequote_tag                  6
+#define OrderbookSubscribe_userId_tag            1
+#define OrderbookSubscribe_subs_tag              2
+#define OrderbookSubscribe_key_tag               3
 
 /* Struct field encoding specification for nanopb */
-#define LiveFeedSub_FIELDLIST(X, a) \
+#define Orderbook_FIELDLIST(X, a) \
 X(a, STATIC,   REPEATED, STRING,   orderbook,         2) \
 X(a, STATIC,   REPEATED, STRING,   livequote,         6)
-#define LiveFeedSub_CALLBACK NULL
-#define LiveFeedSub_DEFAULT NULL
+#define Orderbook_CALLBACK NULL
+#define Orderbook_DEFAULT NULL
 
-#define SymbolSubscribe_FIELDLIST(X, a) \
+#define OrderbookSubscribe_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, STRING,   userId,            1) \
 X(a, STATIC,   OPTIONAL, MESSAGE,  subs,              2) \
 X(a, STATIC,   SINGULAR, STRING,   key,               3)
-#define SymbolSubscribe_CALLBACK NULL
-#define SymbolSubscribe_DEFAULT NULL
-#define SymbolSubscribe_subs_MSGTYPE LiveFeedSub
+#define OrderbookSubscribe_CALLBACK NULL
+#define OrderbookSubscribe_DEFAULT NULL
+#define OrderbookSubscribe_subs_MSGTYPE Orderbook
 
-extern const pb_msgdesc_t LiveFeedSub_msg;
-extern const pb_msgdesc_t SymbolSubscribe_msg;
+extern const pb_msgdesc_t Orderbook_msg;
+extern const pb_msgdesc_t OrderbookSubscribe_msg;
 
 /* Defines for backwards compatibility with code written before nanopb-0.4.0 */
-#define LiveFeedSub_fields &LiveFeedSub_msg
-#define SymbolSubscribe_fields &SymbolSubscribe_msg
+#define Orderbook_fields &Orderbook_msg
+#define OrderbookSubscribe_fields &OrderbookSubscribe_msg
 
 /* Maximum encoded size of messages (where known) */
-#define LiveFeedSub_size                         170
-#define ORDERBOOK_REQ_PB_H_MAX_SIZE              SymbolSubscribe_size
-#define SymbolSubscribe_size                     336
+#define ORDERBOOK_REQ_PB_H_MAX_SIZE              OrderbookSubscribe_size
+#define OrderbookSubscribe_size                  336
+#define Orderbook_size                           170
 
 #ifdef __cplusplus
 } /* extern "C" */

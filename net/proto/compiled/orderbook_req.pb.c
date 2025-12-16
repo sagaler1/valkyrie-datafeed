@@ -6,10 +6,10 @@
 #error Regenerate this file with the current version of nanopb generator.
 #endif
 
-PB_BIND(LiveFeedSub, LiveFeedSub, AUTO)
+PB_BIND(Orderbook, Orderbook, AUTO)
 
 
-PB_BIND(SymbolSubscribe, SymbolSubscribe, 2)
+PB_BIND(OrderbookSubscribe, OrderbookSubscribe, 2)
 
 
 

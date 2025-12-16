@@ -7,6 +7,8 @@
 #include "config.h"
 #include "ConfigDlg.h"
 #include "extradata/extra_dispatcher.h"
+#include "ui/orderbook/OrderbookClient.h"
+#include "ui/orderbook/OrderbookDlg.h"
 #include <memory>
 #include <atomic>
 #include <windows.h>
@@ -15,6 +17,7 @@
 
 // ---- Global Variables ----
 std::shared_ptr<WsClient> g_wsClient;
+std::shared_ptr<OrderbookClient> g_obClient = nullptr;
 DataStore gDataStore;
 HWND g_hAmiBrokerWnd = NULL;
 HMODULE g_hDllModule = NULL;                      // DLL handle
@@ -55,10 +58,11 @@ PLUGINAPI int Init(void) {
   // ---- Common Controls initialization 
   INITCOMMONCONTROLSEX icex;
   icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
-  icex.dwICC = ICC_DATE_CLASSES;                  // Kita hanya perlu class untuk Date/Time control
+  icex.dwICC = ICC_DATE_CLASSES | ICC_LISTVIEW_CLASSES;                  // Kita hanya perlu class untuk Date/Time control
   InitCommonControlsEx(&icex);
 
   g_wsClient = std::make_shared<WsClient>();
+  //g_obClient = std::make_shared<OrderbookClient>();
   g_nStatus = STATE_IDLE;
   return 1;
 }
@@ -238,6 +242,21 @@ PLUGINAPI int Notify(struct PluginNotification* pn) {
           break;
         case ID_STATUS_CONFIGURE:
           break;
+        case ID_MENU_SHOW_ORDERBOOK:
+          {
+            // Cek apakah client running?
+            if (!g_obClient) {
+              // Init jika belum run (lazy)
+              g_obClient = std::make_shared<OrderbookClient>();
+              g_obClient->start(username, api_host + "/api/amibroker/socketkey");
+            }
+
+            OrderbookDlg::instance().Show(g_hAmiBrokerWnd);
+            // Trigger fetch ticker aktif saat ini
+            // (Karena mungkin GetQuotesEx belum terpanggil)
+            // Tapi biasanya GetQuotesEx akan handle ini otomatis.
+            break;
+          }
       }
     }
     DestroyMenu(hMenu);
@@ -266,6 +285,9 @@ PLUGINAPI int Configure( LPCTSTR pszPath, struct InfoSite *pSite ) {
 
 // ---- GetQuotesEx() function is a basic function that all data plugins must export and it is called each time AmiBroker wants to get new quotes ----
 PLUGINAPI int GetQuotesEx(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int nSize, struct Quotation* pQuotes, GQEContext* pContext) {
+  if (g_obClient && OrderbookDlg::instance().IsVisible()) {
+    g_obClient->setActiveTicker(pszTicker);
+  }
   return GetQuotesEx_Bridge(pszTicker, nPeriodicity, nLastValid, nSize, pQuotes);
 }
 

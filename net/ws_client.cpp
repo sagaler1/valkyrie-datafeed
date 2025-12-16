@@ -195,7 +195,7 @@ bool WsClient::isConnected() const { return m_isConnected; }
 void WsClient::run() {
   std::string socket_url = Config::getInstance().getSocketUrl();
   m_ws = std::make_unique<ix::WebSocket>();
-  m_ws->setUrl(socket_url);
+  m_ws->setUrl(socket_url + "?type=chart");
 
   LogWS(std::string("[WS] Worker thread started. Fetching wskey from: ") + m_wsKeyUrl);
   std::string wskey = fetchWsKey(m_wsKeyUrl);

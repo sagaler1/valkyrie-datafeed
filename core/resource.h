@@ -5,6 +5,7 @@
 #define ID_STATUS_CONNECT           60001
 #define ID_STATUS_DISCONNECT        60002
 #define ID_STATUS_CONFIGURE         60004
+#define ID_MENU_SHOW_ORDERBOOK         60005
 
 // ---- Menu Resource Utama ---
 #define IDR_STATUS_MENU             101
@@ -18,6 +19,12 @@
 #define IDC_HOST_EDIT               1007
 #define IDC_USERNAME_EDIT           1008
 #define IDC_SOCKET_URL_EDIT         1009
+
+#define IDD_ORDERBOOK_DIALOG    2000
+#define IDC_LIST_BID            2001
+#define IDC_LIST_OFFER          2002
+#define IDC_STATIC_SYMBOL       2003
+#define IDC_STATIC_NAME         2004 // Untuk tampilkan nama company
 
 // Next default values for new objects
 // 
