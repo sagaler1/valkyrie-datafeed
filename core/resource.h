@@ -20,11 +20,26 @@
 #define IDC_USERNAME_EDIT           1008
 #define IDC_SOCKET_URL_EDIT         1009
 
+// ---- Orderbook Dialog
 #define IDD_ORDERBOOK_DIALOG    2000
-#define IDC_LIST_BID            2001
-#define IDC_LIST_OFFER          2002
-#define IDC_STATIC_SYMBOL       2003
-#define IDC_STATIC_NAME         2004 // Untuk tampilkan nama company
+// ---- Orderbook Controls
+#define IDC_EDIT_TICKER         2010
+#define IDC_BTN_GO              2011
+#define IDC_LIST1               2012
+// ---- Orderbook Static Text
+#define IDC_STATIC_STATUS       2013
+#define IDC_STATIC_LAST         2014
+#define IDC_STATIC_PREV         2015
+#define IDC_STATIC_CHG          2016
+#define IDC_STATIC_PCT          2017
+#define IDC_STATIC_OPEN         2018
+#define IDC_STATIC_HIGH         2019
+#define IDC_STATIC_LOW          2020
+#define IDC_STATIC_LOT          2021
+#define IDC_STATIC_VAL          2022
+#define IDC_STATIC_FREQ         2023
+
+#define IDC_STATIC_LNAME        2024
 
 // Next default values for new objects
 // 

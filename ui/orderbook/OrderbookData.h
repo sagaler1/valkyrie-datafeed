@@ -11,24 +11,32 @@ struct OrderLevel {
 };
 
 struct OrderbookSnapshot {
-    std::string symbol;
-    std::string company_type;
-    
-    // Header Info (dari LiveQuote / HTTP Snapshot)
-    double prev_close = 0;
-    double last_price = 0;
-    double change = 0;
-    double percent = 0;
-    
-    // The Orderbook Rows
-    std::vector<OrderLevel> bids;
-    std::vector<OrderLevel> offers;
+  std::string symbol;
+  std::string company_type;
+  std::string company_name;
+  
+  // Header Info (dari LiveQuote / HTTP Snapshot)
+  double prev_close = 0;
+  double last_price = 0;
+  double change = 0;
+  double open = 0;
+  double high = 0;
+  double low = 0; 
+  double percent = 0;
+  double volume = 0;
+  double value = 0; 
+  double frequency = 0;
+  
+  // The Orderbook Rows
+  std::vector<OrderLevel> bids;
+  std::vector<OrderLevel> offers;
 
-    void clear() {
-        symbol.clear();
-        bids.clear();
-        offers.clear();
-    }
+  void clear() {
+    symbol.clear();
+    bids.clear();
+    offers.clear();
+    last_price = prev_close = open = high = low = change = percent = volume = value = frequency = 0;
+  }
 };
 
 #endif // ORDERBOOK_DATA_H

@@ -21,12 +21,13 @@ public:
     ~OrderbookClient();
 
     // Lifecycle
-    void start(const std::string& userId, const std::string& wsKeyUrl);
+    // Dipanggil sekali saat plugin Init
+    void connectStandby(); 
     void stop();
 
     // Interaction
-    // Fungsi ini dipanggil Main Thread saat pindah ticker
-    void setActiveTicker(const std::string& ticker);
+    // Dipanggil saat User tekan Enter/Button Go
+    void requestTicker(const std::string& ticker);
     
     // Set handle window dialog untuk notifikasi update (PostMessage)
     void setWindowHandle(HWND hWnd);
@@ -43,12 +44,9 @@ private:
     // State Flags
     std::atomic<bool> m_run;
     std::atomic<bool> m_isConnected;
-    std::atomic<bool> m_isSubscribed;
-
+    
     // Context Data
-    std::string m_userId;
     std::string m_activeTicker;
-    std::string m_wsKeyUrl;
     HWND m_hOrderbookWnd;
 
     // Data Storage (Protected by Mutex)
@@ -57,12 +55,13 @@ private:
 
     // --- INTERNAL LOGIC ---
     
-    // Worker Entry Point (Fetch Snapshot -> Connect WS)
-    void connectAndStream(); 
+    // Main Worker Loop (Maintain Connection)
+    void connectionLoop(); 
     
-    // HTTP Snapshot Logic
-    void fetchSnapshot(const std::string& symbol);
-    bool parseSnapshotJson(const std::string& jsonResponse, const std::string& symbol);
+    // Helpers
+    bool fetchAndValidateSnapshot(const std::string& ticker); // HTTP Request
+    void sendSubscription(const std::string& ticker);         // WS Request
+    void clearData();
 
     // WebSocket Logic
     void pingLoop();
@@ -71,10 +70,8 @@ private:
     // Stream Parsing Logic
     void parseStreamBody(const std::string& body);
     void parseRow(const std::string& rawRow, std::vector<OrderLevel>& targetVec);
+    bool parseSnapshotJson(const std::string& jsonResponse, const std::string& symbol);
 
-    // Helpers
-    std::string fetchWsKey(const std::string& url);
-    
     // Proto Builders
     std::string buildHandshake(const std::string& userId, const std::string& key);
     std::string buildSubscribe(const std::string& userId, const std::string& key, const std::string& symbol);

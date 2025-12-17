@@ -1,44 +1,35 @@
-#ifndef ORDERBOOK_DLG_H
-#define ORDERBOOK_DLG_H
-
+#pragma once
 #include <windows.h>
-#include <commctrl.h>
 #include <string>
-#include <vector>
-#include "OrderbookData.h" 
+#include "OrderbookData.h"
+
+// Pastikan include resource biar ID-nya kebaca
+#include "../../core/resource.h" 
 
 class OrderbookDlg {
 public:
-  OrderbookDlg();
-  ~OrderbookDlg();
-
-  // Singleton access supaya gampang dipanggil dari mana aja
-  static OrderbookDlg& instance();
-
-  // Main functions
-  void Show(HWND hParent);
-  void Hide();
-  bool IsVisible() const;
-  HWND GetHwnd() const { return m_hWnd; }
-  
-  // Dipanggil saat ada update data dari Client
-  void UpdateUI(); 
-
-  // Message Processor
-  static INT_PTR CALLBACK DialogProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+  static INT_PTR CALLBACK DlgProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+  static void Show(HINSTANCE hInst, HWND hParent);
 
 private:
-  HWND m_hWnd;
-  HWND m_hListBid;
-  HWND m_hListOffer;
+  static void OnInitDialog(HWND hWnd);
+  static void OnClose(HWND hWnd);
+  static void OnCommand(HWND hWnd, WPARAM wParam);
 
-  // Helper untuk inisialisasi kolom List View
-  void InitListViews();
-  // Helper update baris
-  void UpdateListContent(const OrderbookSnapshot& data);
+  static LRESULT OnListViewCustomDraw(HWND hWnd, LPARAM lParam);
+  static COLORREF GetPriceColor(const OrderbookSnapshot& data);
   
-  // Helper set text listview biar rapi
-  void SetListText(HWND hList, int row, int col, const std::string& text);
-};
+  // Handler Pesan Custom dari Client
+  static void OnStreamingUpdate(HWND hWnd, WPARAM wParam, LPARAM lParam);
 
-#endif // ORDERBOOK_DLG_H
+  // Fungsi Render UI
+  static void InitListView(HWND hWnd);
+  static void UpdateDisplay(HWND hWnd); // Render Full Table
+  static void ClearDisplay(HWND hWnd);  // Kosongkan Table (Loading State)
+  
+  // Helper
+  static std::string FormatPrice(double val);
+  static std::string FormatPercent(double val);
+  static std::string FormatNumber(long val);
+  static std::string FormatValue(double val);
+};

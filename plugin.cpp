@@ -9,11 +9,15 @@
 #include "extradata/extra_dispatcher.h"
 #include "ui/orderbook/OrderbookClient.h"
 #include "ui/orderbook/OrderbookDlg.h"
+#include "net/api_client.h"         // WinHttpGetData
+#include "core/SessionContext.h"    // SessionContext
+
 #include <memory>
 #include <atomic>
 #include <windows.h>
 #include <CommCtrl.h>
 #include <thread>
+#include <string>
 
 // ---- Global Variables ----
 std::shared_ptr<WsClient> g_wsClient;
@@ -58,11 +62,64 @@ PLUGINAPI int Init(void) {
   // ---- Common Controls initialization 
   INITCOMMONCONTROLSEX icex;
   icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
-  icex.dwICC = ICC_DATE_CLASSES | ICC_LISTVIEW_CLASSES;                  // Kita hanya perlu class untuk Date/Time control
+  icex.dwICC = ICC_DATE_CLASSES | ICC_LISTVIEW_CLASSES;                  // Kita perlu class untuk Date/Time control & Listview
   InitCommonControlsEx(&icex);
 
+  // =========================================================
+  // STEP 1: GLOBAL STATE INITIALIZATION
+  // =========================================================
+
+  // 1. Load config
+  std::string username = Config::getInstance().getUsername();
+  std::string host = Config::getInstance().getHost();
+
+  // 2. Simpan Username ke Context
+  SessionContext::instance().setUsername(username);
+
+  // 3. Fetch WS Key Asynchronously (Fire and Forget)
+  //    Pakai thread detached supaya tidak blocking AmiBroker startup.
+  std::thread([host]() {
+    std::string url = host + "/api/amibroker/socketkey";
+    OutputDebugStringA(("[Plugin] Fetching global WS Key from: " + url).c_str());
+
+    // Fetch HTTP
+    std::string resp = WinHttpGetData(url);
+
+    // Parse Simple JSON
+    std::string key = "";
+      size_t pos = resp.find("\"key\":\"");
+      if (pos != std::string::npos) {
+        pos += 7;
+        size_t end = resp.find("\"", pos);
+        if (end != std::string::npos) {
+            key = resp.substr(pos, end - pos);
+        }
+      }
+
+    // Simpan ke SessionContext jika berhasil
+    if (!key.empty()) {
+      SessionContext::instance().setWsKey(key);
+      OutputDebugStringA(("[Plugin] GLOBAL KEY FETCHED: " + key).c_str());
+        
+      // [OPTIONAL STEP 2 PREP]
+      // Jika nanti g_obClient sudah support 'connectStandby', panggil di sini:
+      // if (g_obClient) g_obClient->connectStandby();
+    } else {
+      OutputDebugStringA("[Plugin] FAILED to fetch Global WS Key.");
+    }
+  }).detach();
+
   g_wsClient = std::make_shared<WsClient>();
-  //g_obClient = std::make_shared<OrderbookClient>();
+
+  // Init Orderbook Client di awal
+  // Supaya siap standby
+  if (!g_obClient) {
+    g_obClient = std::make_shared<OrderbookClient>();
+  }
+
+  // NYALAKAN STANDBY CONNECTION
+  g_obClient->connectStandby(); 
+
   g_nStatus = STATE_IDLE;
   return 1;
 }
@@ -243,20 +300,8 @@ PLUGINAPI int Notify(struct PluginNotification* pn) {
         case ID_STATUS_CONFIGURE:
           break;
         case ID_MENU_SHOW_ORDERBOOK:
-          {
-            // Cek apakah client running?
-            if (!g_obClient) {
-              // Init jika belum run (lazy)
-              g_obClient = std::make_shared<OrderbookClient>();
-              g_obClient->start(username, api_host + "/api/amibroker/socketkey");
-            }
-
-            OrderbookDlg::instance().Show(g_hAmiBrokerWnd);
-            // Trigger fetch ticker aktif saat ini
-            // (Karena mungkin GetQuotesEx belum terpanggil)
-            // Tapi biasanya GetQuotesEx akan handle ini otomatis.
-            break;
-          }
+          OrderbookDlg::Show(g_hDllModule, g_hAmiBrokerWnd);
+          break;
       }
     }
     DestroyMenu(hMenu);
@@ -285,9 +330,6 @@ PLUGINAPI int Configure( LPCTSTR pszPath, struct InfoSite *pSite ) {
 
 // ---- GetQuotesEx() function is a basic function that all data plugins must export and it is called each time AmiBroker wants to get new quotes ----
 PLUGINAPI int GetQuotesEx(LPCTSTR pszTicker, int nPeriodicity, int nLastValid, int nSize, struct Quotation* pQuotes, GQEContext* pContext) {
-  if (g_obClient && OrderbookDlg::instance().IsVisible()) {
-    g_obClient->setActiveTicker(pszTicker);
-  }
   return GetQuotesEx_Bridge(pszTicker, nPeriodicity, nLastValid, nSize, pQuotes);
 }
 
