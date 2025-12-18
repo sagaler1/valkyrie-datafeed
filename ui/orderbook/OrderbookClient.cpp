@@ -263,7 +263,7 @@ bool OrderbookClient::parseSnapshotJson(const std::string& jsonResponse, const s
 
     if (data.contains("name")) m_data.company_name = data.value("name", "");
 
-    if (data.contains("previous")) m_data.prev_close = data.value("previous", 0.0);
+    if (data.contains("previous")) m_data.prev_close = data.value("previous", 0.0); OutputDebugStringA(("[Orderbook] prev_close set: " + std::to_string(m_data.prev_close)).c_str());
     if (data.contains("change")) m_data.change = data.value("change", 0.0);
     if (data.contains("percentage_change")) m_data.percent = data.value("percentage_change", 0.0);
     if (data.contains("open")) m_data.open = data.value("open", 0.0);
