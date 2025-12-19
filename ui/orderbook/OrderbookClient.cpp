@@ -62,10 +62,10 @@ void OrderbookClient::setWindowHandle(HWND hWnd) {
 // =========================================================
 
 void OrderbookClient::connectStandby() {
-  if (m_run) return; // Sudah jalan
+  if (m_run) return; // Sudah run
   m_run = true;
   
-  // Jalankan thread maintenance socket
+  // Run thread maintenance socket
   m_workerThread = std::thread(&OrderbookClient::connectionLoop, this);
 }
 
@@ -82,24 +82,24 @@ void OrderbookClient::stop() {
 }
 
 void OrderbookClient::connectionLoop() {
-  // 1. Ambil URL Socket
+  // Ambil URL Socket
   std::string socketUrl = Config::getInstance().getSocketUrl();
     
   // Setup WebSocket
   m_ws = std::make_unique<ix::WebSocket>();
   m_ws->setUrl(socketUrl);
 
-    // Callback
+  // Callback
   m_ws->setOnMessageCallback([this](const ix::WebSocketMessagePtr& msg) {
     if (msg->type == ix::WebSocketMessageType::Open) {
       m_isConnected = true;
       OutputDebugStringA("[Orderbook] Socket Connected. Sending Handshake...");
 
-      // 2. Ambil Key & User dari Global Context
+      // Ambil Key & User dari Global Context
       std::string key = SessionContext::instance().getWsKey();
       std::string user = SessionContext::instance().getUsername();
 
-      // Kalau key belum ada (karena fetch di Init belum kelar), tunggu bentar
+      // Jika key belum ada (karena fetch di Init belum selesai), tunggu sebentar
       int retry = 0;
       while(key.empty() && retry < 10) {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -109,7 +109,7 @@ void OrderbookClient::connectionLoop() {
       }
 
       if (!key.empty()) {
-        // Kirim Handshake
+        // Send handshake
         m_ws->sendBinary(buildHandshake(user, key));
           
         // Start Ping Loop
@@ -128,17 +128,17 @@ void OrderbookClient::connectionLoop() {
     }
   });
 
-    m_ws->start();
+  m_ws->start();
 
-    // Reconnect Loop (Persistent)
-    while (m_run) {
-      if (!m_isConnected) {
-        OutputDebugStringA("[Orderbook] Reconnecting...");
-        m_ws->start();
-        std::this_thread::sleep_for(std::chrono::seconds(5));
-      }
-      std::this_thread::sleep_for(std::chrono::seconds(1));
+  // Reconnect Loop (Persistent)
+  while (m_run) {
+    if (!m_isConnected) {
+      OutputDebugStringA("[Orderbook] Reconnecting...");
+      m_ws->start();
+      std::this_thread::sleep_for(std::chrono::seconds(5));
     }
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
 }
 
 // =========================================================
@@ -152,7 +152,7 @@ void OrderbookClient::requestTicker(const std::string& ticker) {
   clearData();
   if (m_hOrderbookWnd) PostMessage(m_hOrderbookWnd, WM_USER_STREAMING_UPDATE, 1, 0);
 
-  // 2. Fetch HTTP Snapshot & Validasi (Synchronous biar UI dapet feedback langsung)
+  // 2. Fetch HTTP Snapshot & Validasi (Synchronous -> UI dapet feedback langsung)
   bool isValid = fetchAndValidateSnapshot(ticker);
 
   if (isValid) {
@@ -166,7 +166,7 @@ void OrderbookClient::requestTicker(const std::string& ticker) {
     if (m_hOrderbookWnd)
       PostMessage(m_hOrderbookWnd, WM_USER_STREAMING_UPDATE, 0, 0);
 
-    // 3. Subscribe ke Socket (Jika socket hidup)
+    // 3. Subscribe ke socket (jika socket on)
     if (m_isConnected) {
       sendSubscription(ticker);
     } else {
@@ -230,7 +230,7 @@ bool OrderbookClient::parseSnapshotJson(const std::string& jsonResponse, const s
     std::string type = data.value("company_type", "");
     if (type != "Saham") return false; 
 
-    // Lock Mutex sebelum update
+    // Lock mutex sebelum update
     std::lock_guard<std::mutex> lock(m_dataMutex);
     m_data.clear();
     m_data.symbol = symbol;
@@ -398,7 +398,7 @@ void OrderbookClient::parseStreamBody(const std::string& body) {
   long long tempTotalVol = 0;
 
   for (size_t i = 3; i < tokens.size(); i++) {
-    // Cek apakah token ini adalah Footer (mengandung '-' dan '&')
+    // Cek apakah token ini adalah Footer (contains '-' dan '&')
     // Format: Epoch-Freq&Vol (ex: 1750818351-196&1200200)
     size_t posAmp = tokens[i].find('&');
     if (posAmp != std::string::npos) {

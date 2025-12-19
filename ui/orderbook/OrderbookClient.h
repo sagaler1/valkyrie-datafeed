@@ -52,8 +52,10 @@ private:
     // Data Storage (Protected by Mutex)
     OrderbookSnapshot m_data;
     std::mutex m_dataMutex;
-
-    // --- INTERNAL LOGIC ---
+    
+    // ========================
+    // INTERNAL LOGIC
+    // ========================
     
     // Main Worker Loop (Maintain Connection)
     void connectionLoop(); 

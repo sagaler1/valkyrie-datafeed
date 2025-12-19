@@ -26,10 +26,10 @@ static PriceBaseColor CalcChgColor(double chg) {
 
 static COLORREF GetBaseColor(PriceBaseColor c) {
   switch (c) {
-    case PriceBaseColor::UP:    return RGB(0, 166, 62);    // Hijau lebih deep
-    case PriceBaseColor::DOWN:  return RGB(220, 0, 0);    // Merah
-    case PriceBaseColor::FLAT:  return RGB(151, 145, 52);  // Kuning/Emas
-    default:                    return RGB(0, 0, 0);      // Hitam (Netral)
+    case PriceBaseColor::UP:    return RGB(0, 166, 62);     // Hijau dark
+    case PriceBaseColor::DOWN:  return RGB(220, 0, 0);      // Merah
+    case PriceBaseColor::FLAT:  return RGB(151, 145, 52);   // Kuning dark
+    default:                    return RGB(0, 0, 0);        // Hitam (Netral)
   }
 }
 
@@ -65,7 +65,7 @@ static LRESULT CALLBACK HeaderPanelProc(HWND hWnd, UINT msg, WPARAM wParam, LPAR
       PAINTSTRUCT ps;
       HDC hdc = BeginPaint(hWnd, &ps);
 
-      // --- Double Buffer Setup ---
+      // Double Buffer Setup
       RECT rc;
       GetClientRect(hWnd, &rc);
       
@@ -81,16 +81,16 @@ static LRESULT CALLBACK HeaderPanelProc(HWND hWnd, UINT msg, WPARAM wParam, LPAR
       // Fill Background (Warna Dialog Standard)
       FillRect(memDC, &rc, GetSysColorBrush(COLOR_BTNFACE));
 
-      // --- Warna Label (Constant) ---
+      // Warna Label (Constant)
       COLORREF clrLabel = RGB(80, 80, 80); // Abu Tua biar elegan
 
-      // --- Layout Grid Setup (3 Kolom x 3 Baris) ---
+      // Layout Grid Setup (3 Kolom x 3 Baris)
       int W = rc.right;
       int H = rc.bottom;
       int colW = W / 3;
       int rowH = H / 3;
       
-      // Padding biar teks gak nempel pinggir
+      // Padding supaya teks tidak nempel pinggir
       int padL = 5; // Padding Left
       int padR = 5; // Padding Right
 
@@ -110,22 +110,22 @@ static LRESULT CALLBACK HeaderPanelProc(HWND hWnd, UINT msg, WPARAM wParam, LPAR
         DrawTextA(memDC, valText.c_str(), -1, &rVal, DT_RIGHT | DT_VCENTER | DT_SINGLELINE); \
       }
 
-      // --- ROW 1 ---
+      // ---- ROW 1
       DRAW_CELL(0, 0, "Last", state->last, state->last_base);
       DRAW_CELL(0, 1, "Open", state->open, state->open_base);
       DRAW_CELL(0, 2, "Lot",  state->lot,  PriceBaseColor::NEUTRAL);
 
-      // --- ROW 2 ---
+      // ---- ROW 2
       DRAW_CELL(1, 0, "Prev", state->prev, PriceBaseColor::NEUTRAL);
       DRAW_CELL(1, 1, "High", state->high, state->high_base);
       DRAW_CELL(1, 2, "Val",  state->val,  PriceBaseColor::NEUTRAL);
 
-      // --- ROW 3 ---
+      // ---- ROW 3
       DRAW_CELL(2, 0, "Chg",  state->pct,  state->chg_base); // Pake pct/chg base
       DRAW_CELL(2, 1, "Low",  state->low,  state->low_base);
       DRAW_CELL(2, 2, "Freq", state->freq, PriceBaseColor::NEUTRAL); // Atau mau biru? :D
 
-        // --- Blit ke Layar ---
+        // Blit ke Layar
         BitBlt(hdc, 0, 0, W, H, memDC, 0, 0, SRCCOPY);
 
         // Cleanup
@@ -142,7 +142,7 @@ static LRESULT CALLBACK HeaderPanelProc(HWND hWnd, UINT msg, WPARAM wParam, LPAR
       if (state) delete state;
       SetWindowLongPtr(hWnd, GWLP_USERDATA, 0);
       
-      // Hapus global font kalau perlu (biasanya sih di AppExit, tapi gpp disini kalau panel cuma 1)
+      // Hapus global font kalau perlu (biasanya di AppExit, tapi disini oke jika panel cuma 1)
       if (g_hHeaderFont) { 
         DeleteObject(g_hHeaderFont); 
         g_hHeaderFont = NULL; 
@@ -160,14 +160,14 @@ static LRESULT CALLBACK HeaderPanelProc(HWND hWnd, UINT msg, WPARAM wParam, LPAR
 HWND CreateHeaderPanel(HWND hParent, HINSTANCE hInst, int x, int y, int w, int h) {
     static bool registered = false;
     if (!registered) {
-        WNDCLASS wc = {};
-        wc.lpfnWndProc = HeaderPanelProc;
-        wc.hInstance = hInst;
-        wc.lpszClassName = "OrderbookHeaderPanel";
-        wc.hbrBackground = NULL; // No background brush (kita handle di WM_PAINT)
-        wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-        RegisterClass(&wc);
-        registered = true;
+      WNDCLASS wc = {};
+      wc.lpfnWndProc = HeaderPanelProc;
+      wc.hInstance = hInst;
+      wc.lpszClassName = "OrderbookHeaderPanel";
+      wc.hbrBackground = NULL; // No background brush (handle di WM_PAINT)
+      wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+      RegisterClass(&wc);
+      registered = true;
     }
 
     return CreateWindowEx(0, "OrderbookHeaderPanel", NULL,
@@ -179,8 +179,8 @@ void UpdateHeaderPanel(HWND hPanel, const HeaderState& data) {
     HeaderState* state = (HeaderState*)GetWindowLongPtr(hPanel, GWLP_USERDATA);
     if (!state) return;
 
-    // [FIX 2] Copy DATA DULUAN, baru hitung warna!
-    // Supaya hasil hitungan gak ketimpa data mentah (yang basenya NEUTRAL semua)
+    // Copy DATA DULU, baru hitung warna!
+    // Supaya hasil hitungan tidak tertimpa data mentah (yang basenya NEUTRAL semua)
     *state = data; 
 
     // Hitung warna

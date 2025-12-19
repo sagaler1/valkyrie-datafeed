@@ -11,22 +11,23 @@
 #define IDR_STATUS_MENU             101
 
 // ---- Dialog Retrieve Symbols dan Kontrolnya
-// Kita reuse IDD_EOD_BACKFILL (102) atau naikkan satu ID baru
 #define IDD_CONFIGURE_PLUGIN        104
 #define IDC_RETRIEVE_BUTTON         1005
 #define IDC_STATUS_SYMBOL           1006
+
 // ---- Credential
 #define IDC_HOST_EDIT               1007
 #define IDC_USERNAME_EDIT           1008
 #define IDC_SOCKET_URL_EDIT         1009
 
-// ---- Orderbook Dialog
+// ---- ORDERBOOK
+// Orderbook Dialog
 #define IDD_ORDERBOOK_DIALOG    2000
-// ---- Orderbook Controls
+// Orderbook Controls
 #define IDC_EDIT_TICKER         2010
 #define IDC_BTN_GO              2011
 #define IDC_LIST1               2012
-// ---- Orderbook Static Text
+// Orderbook Static Text
 #define IDC_STATIC_STATUS       2013
 /*
 #define IDC_STATIC_LAST         2014

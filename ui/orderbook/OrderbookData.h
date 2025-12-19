@@ -15,7 +15,7 @@ struct OrderbookSnapshot {
   std::string company_type;
   std::string company_name;
   
-  // Header Info (dari LiveQuote / HTTP Snapshot)
+  // Header Info
   double prev_close = 0;
   double last_price = 0;
   double change = 0;

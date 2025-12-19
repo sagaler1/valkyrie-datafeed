@@ -48,8 +48,8 @@ void SetTextIfChanged(HWND hDlg, int nID, const std::string& newText) {
   char currentText[512]; // Buffer
   GetDlgItemTextA(hDlg, nID, currentText, 512);
   
-  // hanya update kalau beda. 
-  // Kalau sama, skip total (hemat CPU & GPU, anti-flicker)
+  // hanya update jika berbeda. 
+  // Jika sama, skip total (hemat CPU & GPU, anti-flicker)
   if (newText != currentText) {
     SetDlgItemTextA(hDlg, nID, newText.c_str());
   }
@@ -117,12 +117,14 @@ INT_PTR CALLBACK OrderbookDlg::DlgProc(HWND hWnd, UINT message, WPARAM wParam, L
         // Panggil fungsi logic warna
         LRESULT lResult = OnListViewCustomDraw(hWnd, lParam);
 
-        // --- [FIX WAJIB UNTUK DIALOG] ---
-        // Lo harus set DWLP_MSGRESULT supaya Windows tau hasil sebenernya (CDRF_NEWFONT)
+        // =====================
+        // FIX UNTUK DIALOG
+        // =====================
+        // Set DWLP_MSGRESULT supaya Windows tau hasil real-nya (CDRF_NEWFONT)
         SetWindowLongPtr(hWnd, DWLP_MSGRESULT, (LONG_PTR)lResult);
         
         // Return TRUE supaya Windows tahu kita sudah handle message ini, 
-        // dan dia akan baca value dari DWLP_MSGRESULT di atas.
+        // dia akan baca value dari DWLP_MSGRESULT di atas.
         return TRUE; 
       }
       break;
@@ -159,7 +161,7 @@ void OrderbookDlg::OnInitDialog(HWND hWnd) {
   // 1. Ambil Handle ListView
   HWND hList = GetDlgItem(hWnd, IDC_LIST1);
   
-  // 2. Hitung Ukuran & Posisi ListView Sekarang
+  // 2. Hitung size & pos ListView sekarang
   RECT rcList;
   GetWindowRect(hList, &rcList);
   POINT pt = { rcList.left, rcList.top };
@@ -168,7 +170,7 @@ void OrderbookDlg::OnInitDialog(HWND hWnd) {
   int w = rcList.right - rcList.left;
   int h = rcList.bottom - rcList.top;
   
-  // 3. KECILIN ListView (Kurangi 25px dari bawah buat Footer)
+  // 3. KECILIN ListView (Kurangi 25px dari bawah untuk Footer)
   int footerHeight = 25;
   SetWindowPos(hList, NULL, 0, 0, w, h - footerHeight, SWP_NOMOVE | SWP_NOZORDER);
 
@@ -177,8 +179,10 @@ void OrderbookDlg::OnInitDialog(HWND hWnd) {
   int yFooter = pt.y + (h - footerHeight) + 4; 
   int xOffer = w / 2 + 5; // Mulai dari tengah
 
+  // ==============
   // Footer Setup
-  // BID
+  // ==============
+  // ---- BID
   CreateWindow("STATIC", "T. Bid:", WS_CHILD | WS_VISIBLE | SS_RIGHT, 
       5, yFooter, 50, 20, hWnd, NULL, g_hDllModule, NULL);
       
@@ -186,7 +190,7 @@ void OrderbookDlg::OnInitDialog(HWND hWnd) {
       60, yFooter, 100, 20, hWnd, NULL, g_hDllModule, NULL);
   SendMessage(pData->hFooterBidVal, WM_SETFONT, (WPARAM)g_hFont, TRUE);
 
-  // OFFER
+  // ---- OFFER
   CreateWindow("STATIC", "T. Off:", WS_CHILD | WS_VISIBLE | SS_RIGHT, 
       xOffer, yFooter, 50, 20, hWnd, NULL, g_hDllModule, NULL);
       
@@ -284,8 +288,9 @@ void OrderbookDlg::OnStreamingUpdate(HWND hWnd, WPARAM wParam, LPARAM lParam) {
     SetDlgItemTextA(hWnd, IDC_STATIC_STATUS, "Live");
   }
 
-  // DEBUG
-  /*char buf[128];
+  // ---- DEBUG
+  /*
+  char buf[128];
   sprintf_s(buf, "[DEBUG] prev_close: %.2f, last: %.2f", 
     pData->cachedSnapshot.prev_close, 
     pData->cachedSnapshot.last_price);
@@ -295,7 +300,7 @@ void OrderbookDlg::OnStreamingUpdate(HWND hWnd, WPARAM wParam, LPARAM lParam) {
 }
 
 // =========================================================
-// UPDATE DISPLAY (Baca dari Cache)
+// UPDATE DISPLAY (Baca dari cache)
 // =========================================================
 void OrderbookDlg::UpdateDisplay(HWND hWnd) {
   DialogData* pData = GetDialogData(hWnd);
@@ -379,7 +384,7 @@ void OrderbookDlg::UpdateDisplay(HWND hWnd) {
   SendMessage(hList, WM_SETREDRAW, TRUE, 0);
   InvalidateRect(hList, NULL, FALSE); // <- TRIGGER CUSTOM DRAW!
 
-  // --- UPDATE FOOTER (FIXED) ---
+  // ---- UPDATE FOOTER
   if (pData->hFooterBidVal) {
     // Format: "Freq / Lot"
     std::string sVol = FormatNumber(pData->cachedSnapshot.total_bid_vol / 100); // Bagi 100 jadi Lot
@@ -410,7 +415,7 @@ void OrderbookDlg::ClearDisplay(HWND hWnd) {
 }
 
 // =========================================================
-// CUSTOM DRAW (Baca dari Cache)
+// CUSTOM DRAW (Baca dari cache)
 // =========================================================
 LRESULT OrderbookDlg::OnListViewCustomDraw(HWND hWnd, LPARAM lParam) {
   LPNMLVCUSTOMDRAW cd = (LPNMLVCUSTOMDRAW)lParam;
@@ -423,15 +428,14 @@ LRESULT OrderbookDlg::OnListViewCustomDraw(HWND hWnd, LPARAM lParam) {
   if (cd->nmcd.dwDrawStage == CDDS_ITEMPREPAINT) 
     return CDRF_NOTIFYSUBITEMDRAW;
 
-  // 3. Fase SubItem: Saatnya Mewarnai!
+  // 3. Fase SubItem: Saatnya mewarnai!
   if (cd->nmcd.dwDrawStage == (CDDS_ITEMPREPAINT | CDDS_SUBITEM)) {
     DialogData* pData = GetDialogData(hWnd);
         
-    int row = (int)cd->nmcd.dwItemSpec; // Baris ke berapa (0-9 biasanya)
-    int col = cd->iSubItem;             // Kolom ke berapa
+    int row = (int)cd->nmcd.dwItemSpec; // Baris ke berapa ?
+    int col = cd->iSubItem;             // Kolom ke berapa ?
         
-    // Ambil data terbaru (Pastikan pointer m_client valid)
-    // Gue pake const reference biar cepet, gak copy data
+    // Ambil data terbaru (Pastikan pointer m_client valid!)
     // const auto& data = m_client->getData(); 
     const OrderbookSnapshot& data = pData->cachedSnapshot;
     double prev = data.prev_close;
@@ -446,25 +450,24 @@ LRESULT OrderbookDlg::OnListViewCustomDraw(HWND hWnd, LPARAM lParam) {
     // Default text color
     cd->clrText = clrTextDefault;
 
-    // Mapping Index Baru:
+    // Mapping Index:
     // 0: Dummy
     // 1: Freq (Kiri) -> Biru
     // 2: Lot
-    // 3: Bid Price   -> Warna Warni
-    // 4: Offer Price -> Warna Warni
+    // 3: Bid Price   -> Colorful
+    // 4: Offer Price -> Colorful
     // 5: Lot
     // 6: Freq (Kanan) -> Biru
 
-    // --- LOGIC PER KOLOM ---
-
+    // ---- LOGIC PER KOLOM
     // A. Kolom Freq (Misal col 0 dan 5) -> Biru
     if (col == 1 || col == 6) {
       cd->clrText = clrBlue;
     }
 
-    // B. Kolom BID Price (Misal col 2)
+    // B. Kolom BID Price
     else if (col == 3) {
-      // Cek bounds vector biar gak crash
+      // Cek bounds vector supaya no crash
       if (row < (int)data.bids.size()) {
         double price = data.bids[row].price;
           
@@ -476,7 +479,7 @@ LRESULT OrderbookDlg::OnListViewCustomDraw(HWND hWnd, LPARAM lParam) {
       }
     }
 
-    // C. Kolom OFFER Price (Misal col 3)
+    // C. Kolom OFFER Price
     else if (col == 4) {
       // Cek bounds vector
       if (row < (int)data.offers.size()) {
@@ -490,16 +493,13 @@ LRESULT OrderbookDlg::OnListViewCustomDraw(HWND hWnd, LPARAM lParam) {
       }
     }
 
-    // PENTING: Return CDRF_NEWFONT supaya warna diaplikasikan
+    // PENTING!!: Return CDRF_NEWFONT supaya warna diaplikasikan
     return CDRF_NEWFONT;
   }
 
   return CDRF_DODEFAULT;
 }
 
-// =========================================================
-// HELPER FUNCTIONS (Unchanged)
-// =========================================================
 void OrderbookDlg::InitListView(HWND hWnd) {
   HWND hList = GetDlgItem(hWnd, IDC_LIST1);
   SetWindowLong(hList, GWL_STYLE, GetWindowLong(hList, GWL_STYLE) | LVS_REPORT);
@@ -517,12 +517,12 @@ void OrderbookDlg::InitListView(HWND hWnd) {
   int totalWidth = rc.right - scrollWidth;
 
   double weights[6] = {
-    1.2, // Freq (Bid)
-    2.1, // Lot (Bid)
-    1.5, // Bid
-    1.5, // Offer
+    1.2,  // Freq (Bid)
+    2.1,  // Lot (Bid)
+    1.5,  // Bid
+    1.5,  // Offer
     2.1,  // Lot (Offer)
-    1.2, // Freq (Offer)
+    1.2,  // Freq (Offer)
   };
 
   double totalWeight = 0;
@@ -553,7 +553,7 @@ void OrderbookDlg::InitListView(HWND hWnd) {
     ListView_InsertColumn(hList, i + 1, &lvc);
   }
 
-  /* Width dibagi ata
+  /* Width dibagi rata
   int w = totalWidth / 6;
   int wLast = totalWidth - (w * 5);
 
@@ -572,7 +572,7 @@ void OrderbookDlg::InitListView(HWND hWnd) {
   */
 
   if (!g_hImageList) {
-    // width bebas, height = tinggi row yang lu mau
+    // width bebas, height = tinggi row yang kita mau
     g_hImageList = ImageList_Create(1, 22, ILC_COLOR32 | ILC_MASK, 1, 1);
 
     // Set ke ListView (SMALL image is enough)
@@ -580,6 +580,9 @@ void OrderbookDlg::InitListView(HWND hWnd) {
   }
 }
 
+// =========================================================
+// HELPER FUNCTIONS (Number)
+// =========================================================
 std::string OrderbookDlg::FormatNumber(long val) {
   if (val == 0) return "";
   std::string s = std::to_string(val);

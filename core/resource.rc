@@ -87,30 +87,8 @@ BEGIN
 
   // ---- Ticker Detail
   LTEXT     "-", IDC_STATIC_LNAME, 8, 25, 220, 10
-  /*
-  LTEXT     "Prev", -1, 8, 41, 25, 10
-  LTEXT     "Chg", -1, 8, 53, 25, 10
-  LTEXT     "%", -1, 8, 65, 25, 10
-  RTEXT     "-", IDC_STATIC_PREV, 36, 41, 40, 10
-  RTEXT     "-", IDC_STATIC_CHG, 36, 53, 40, 10
-  RTEXT     "-", IDC_STATIC_PCT, 36, 65, 40, 10
-  LTEXT     "Open", -1, 88, 41, 25, 10
-  LTEXT     "High", -1, 88, 53, 25, 10
-  LTEXT     "Low", -1, 88, 65, 25, 10
-  RTEXT     "-", IDC_STATIC_OPEN, 115, 41, 40, 10
-  RTEXT     "-", IDC_STATIC_HIGH, 115, 53, 40, 10
-  RTEXT     "-", IDC_STATIC_LOW, 115, 65, 40, 10
-  LTEXT     "Lot", -1, 167, 41, 25, 10
-  LTEXT     "Val", -1, 167, 53, 25, 10
-  LTEXT     "Freq", -1, 167, 65, 25, 10
-  RTEXT     "-", IDC_STATIC_LOT, 195, 41, 40, 10
-  RTEXT     "-", IDC_STATIC_VAL, 195, 53, 40, 10
-  RTEXT     "-", IDC_STATIC_FREQ, 195, 65, 40, 10
-  LTEXT     "Last", -1, 99, 9, 22, 10
-  RTEXT     "-", IDC_STATIC_LAST, 122, 9, 43, 10
-  */  
 
-  // --- Orderbook Table ---
+  // ---- Orderbook Table
   CONTROL "", IDC_LIST1, "SysListView32",
       LVS_REPORT | LVS_SINGLESEL | LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,
       6, 85, 240, 183

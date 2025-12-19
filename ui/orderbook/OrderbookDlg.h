@@ -3,7 +3,7 @@
 #include <string>
 #include "OrderbookData.h"
 
-// Pastikan include resource biar ID-nya kebaca
+// Resource
 #include "../../core/resource.h" 
 
 class OrderbookDlg {
