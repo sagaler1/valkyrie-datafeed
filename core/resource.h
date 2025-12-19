@@ -7,7 +7,7 @@
 #define ID_STATUS_CONFIGURE         60004
 #define ID_MENU_SHOW_ORDERBOOK         60005
 
-// ---- Menu Resource Utama ---
+// ---- Menu Resource Utama
 #define IDR_STATUS_MENU             101
 
 // ---- Dialog Retrieve Symbols dan Kontrolnya
@@ -15,7 +15,7 @@
 #define IDC_RETRIEVE_BUTTON         1005
 #define IDC_STATUS_SYMBOL           1006
 
-// ---- Credential
+// ---- CREDENTIAL
 #define IDC_HOST_EDIT               1007
 #define IDC_USERNAME_EDIT           1008
 #define IDC_SOCKET_URL_EDIT         1009
@@ -29,6 +29,7 @@
 #define IDC_LIST1               2012
 // Orderbook Static Text
 #define IDC_STATIC_STATUS       2013
+#define IDC_STATIC_LNAME        2014
 /*
 #define IDC_STATIC_LAST         2014
 #define IDC_STATIC_PREV         2015
@@ -41,8 +42,6 @@
 #define IDC_STATIC_VAL          2022
 #define IDC_STATIC_FREQ         2023
 */
-
-#define IDC_STATIC_LNAME        2024
 
 // Next default values for new objects
 // 
