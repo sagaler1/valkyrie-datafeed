@@ -75,7 +75,7 @@ END
 
 // ---- Orderbook Dialog
 IDD_ORDERBOOK_DIALOG DIALOGEX 0, 0, 252, 285
-STYLE DS_CENTER | DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+STYLE DS_CENTER | DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN
 EXSTYLE WS_EX_TOOLWINDOW
 CAPTION "Orderbook"
 FONT 8, "Arial", 700, 0, 0x1
@@ -87,6 +87,7 @@ BEGIN
 
   // ---- Ticker Detail
   LTEXT     "-", IDC_STATIC_LNAME, 8, 25, 220, 10
+  /*
   LTEXT     "Prev", -1, 8, 41, 25, 10
   LTEXT     "Chg", -1, 8, 53, 25, 10
   LTEXT     "%", -1, 8, 65, 25, 10
@@ -106,7 +107,8 @@ BEGIN
   RTEXT     "-", IDC_STATIC_VAL, 195, 53, 40, 10
   RTEXT     "-", IDC_STATIC_FREQ, 195, 65, 40, 10
   LTEXT     "Last", -1, 99, 9, 22, 10
-  RTEXT     "-", IDC_STATIC_LAST, 122, 9, 43, 10  
+  RTEXT     "-", IDC_STATIC_LAST, 122, 9, 43, 10
+  */  
 
   // --- Orderbook Table ---
   CONTROL "", IDC_LIST1, "SysListView32",

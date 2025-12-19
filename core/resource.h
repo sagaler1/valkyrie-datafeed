@@ -28,6 +28,7 @@
 #define IDC_LIST1               2012
 // ---- Orderbook Static Text
 #define IDC_STATIC_STATUS       2013
+/*
 #define IDC_STATIC_LAST         2014
 #define IDC_STATIC_PREV         2015
 #define IDC_STATIC_CHG          2016
@@ -38,6 +39,7 @@
 #define IDC_STATIC_LOT          2021
 #define IDC_STATIC_VAL          2022
 #define IDC_STATIC_FREQ         2023
+*/
 
 #define IDC_STATIC_LNAME        2024
 

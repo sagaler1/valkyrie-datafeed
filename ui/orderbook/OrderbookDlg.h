@@ -32,4 +32,7 @@ private:
   static std::string FormatPercent(double val);
   static std::string FormatNumber(long val);
   static std::string FormatValue(double val);
+
+  HWND m_hFooterBid = NULL;
+  HWND m_hFooterOffer = NULL;
 };

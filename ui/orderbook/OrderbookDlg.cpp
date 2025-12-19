@@ -17,6 +17,11 @@
 struct DialogData {
   OrderbookSnapshot cachedSnapshot;
   bool dataReady = false;
+
+  HWND hFooterBidLabel = NULL; // label "T. Bid"
+  HWND hFooterBidVal = NULL;   // Value Bid
+  HWND hFooterOffLabel = NULL;
+  HWND hFooterOffVal = NULL;   // Value Offer
 };
 
 // Globals
@@ -26,6 +31,7 @@ static HFONT g_hFont = NULL;
 extern std::shared_ptr<OrderbookClient> g_obClient;
 static HWND g_hDlgOrderbook = NULL;
 static WNDPROC g_wpOrigEditProc = NULL;
+static HIMAGELIST g_hImageList = NULL;
 
 // =========================================================
 // HELPER: Get/Set Cached Data
@@ -38,8 +44,19 @@ static void SetDialogData(HWND hWnd, DialogData* pData) {
   SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)pData);
 }
 
+void SetTextIfChanged(HWND hDlg, int nID, const std::string& newText) {
+  char currentText[512]; // Buffer
+  GetDlgItemTextA(hDlg, nID, currentText, 512);
+  
+  // hanya update kalau beda. 
+  // Kalau sama, skip total (hemat CPU & GPU, anti-flicker)
+  if (newText != currentText) {
+    SetDlgItemTextA(hDlg, nID, newText.c_str());
+  }
+}
+
 // =========================================================
-// UTILITY FUNCTIONS (Unchanged)
+// UTILITY FUNCTIONS 
 // =========================================================
 std::string FormatNumberWithComma(long long val) {
   if (val == 0) return "0";
@@ -87,7 +104,7 @@ INT_PTR CALLBACK OrderbookDlg::DlgProc(HWND hWnd, UINT message, WPARAM wParam, L
   switch (message) {
     case WM_INITDIALOG:
       OnInitDialog(hWnd);
-      return (INT_PTR)TRUE;
+      return (INT_PTR)TRUE; 
 
     case WM_COMMAND:
       OnCommand(hWnd, wParam);
@@ -95,12 +112,21 @@ INT_PTR CALLBACK OrderbookDlg::DlgProc(HWND hWnd, UINT message, WPARAM wParam, L
 
     case WM_NOTIFY:
     {
-      LPNMHDR hdr = (LPNMHDR)lParam;
-      if (hdr->idFrom == IDC_LIST1 && hdr->code == NM_CUSTOMDRAW) {
-        return OnListViewCustomDraw(hWnd, lParam);
+      LPNMHDR pHeader = (LPNMHDR)lParam;
+      if (pHeader->idFrom == IDC_LIST1 && pHeader->code == NM_CUSTOMDRAW) {
+        // Panggil fungsi logic warna
+        LRESULT lResult = OnListViewCustomDraw(hWnd, lParam);
+
+        // --- [FIX WAJIB UNTUK DIALOG] ---
+        // Lo harus set DWLP_MSGRESULT supaya Windows tau hasil sebenernya (CDRF_NEWFONT)
+        SetWindowLongPtr(hWnd, DWLP_MSGRESULT, (LONG_PTR)lResult);
+        
+        // Return TRUE supaya Windows tahu kita sudah handle message ini, 
+        // dan dia akan baca value dari DWLP_MSGRESULT di atas.
+        return TRUE; 
       }
+      break;
     }
-    break;
 
     case WM_USER_STREAMING_UPDATE: 
       OnStreamingUpdate(hWnd, wParam, lParam);
@@ -129,6 +155,45 @@ void OrderbookDlg::OnInitDialog(HWND hWnd) {
   lf.lfWeight = FW_BOLD;
   strcpy_s(lf.lfFaceName, "Arial");
   g_hFont = CreateFontIndirect(&lf);
+
+  // 1. Ambil Handle ListView
+  HWND hList = GetDlgItem(hWnd, IDC_LIST1);
+  
+  // 2. Hitung Ukuran & Posisi ListView Sekarang
+  RECT rcList;
+  GetWindowRect(hList, &rcList);
+  POINT pt = { rcList.left, rcList.top };
+  ScreenToClient(hWnd, &pt); // Konversi ke koordinat dialog
+  
+  int w = rcList.right - rcList.left;
+  int h = rcList.bottom - rcList.top;
+  
+  // 3. KECILIN ListView (Kurangi 25px dari bawah buat Footer)
+  int footerHeight = 25;
+  SetWindowPos(hList, NULL, 0, 0, w, h - footerHeight, SWP_NOMOVE | SWP_NOZORDER);
+
+  // 4. BIKIN FOOTER MANUAL (Static Text)
+  // Posisi Y = (Top Listview) + (Tinggi Baru Listview) + (Padding dikit)
+  int yFooter = pt.y + (h - footerHeight) + 4; 
+  int xOffer = w / 2 + 5; // Mulai dari tengah
+
+  // Footer Setup
+  // BID
+  CreateWindow("STATIC", "T. Bid:", WS_CHILD | WS_VISIBLE | SS_RIGHT, 
+      5, yFooter, 50, 20, hWnd, NULL, g_hDllModule, NULL);
+      
+  pData->hFooterBidVal = CreateWindow("STATIC", "-", WS_CHILD | WS_VISIBLE | SS_LEFT, 
+      60, yFooter, 100, 20, hWnd, NULL, g_hDllModule, NULL);
+  SendMessage(pData->hFooterBidVal, WM_SETFONT, (WPARAM)g_hFont, TRUE);
+
+  // OFFER
+  CreateWindow("STATIC", "T. Off:", WS_CHILD | WS_VISIBLE | SS_RIGHT, 
+      xOffer, yFooter, 50, 20, hWnd, NULL, g_hDllModule, NULL);
+      
+  pData->hFooterOffVal = CreateWindow("STATIC", "-", WS_CHILD | WS_VISIBLE | SS_LEFT, 
+      xOffer + 55, yFooter, 100, 20, hWnd, NULL, g_hDllModule, NULL);
+  SendMessage(pData->hFooterOffVal, WM_SETFONT, (WPARAM)g_hFont, TRUE);
+
 
   //SendMessage(GetDlgItem(hWnd, IDC_LIST1), WM_SETFONT, (WPARAM)g_hFont, TRUE);
   SendMessage(GetDlgItem(hWnd, IDC_EDIT_TICKER), WM_SETFONT, (WPARAM)g_hFont, TRUE);
@@ -226,6 +291,7 @@ void OrderbookDlg::OnStreamingUpdate(HWND hWnd, WPARAM wParam, LPARAM lParam) {
     pData->cachedSnapshot.last_price);
   OutputDebugStringA(buf);
   */
+  
 }
 
 // =========================================================
@@ -266,7 +332,8 @@ void OrderbookDlg::UpdateDisplay(HWND hWnd) {
 
   std::string title = "Orderbook: " + data.symbol;
   SetWindowTextA(hWnd, title.c_str());
-  SetDlgItemTextA(hWnd, IDC_STATIC_LNAME, data.company_name.c_str());
+  SetTextIfChanged(hWnd, IDC_STATIC_LNAME, data.company_name);
+  //SetDlgItemTextA(hWnd, IDC_STATIC_LNAME, data.company_name.c_str());
 
   int requiredRows = (std::max)((int)data.bids.size(), (int)data.offers.size());
   int currentRows = ListView_GetItemCount(hList);
@@ -283,23 +350,23 @@ void OrderbookDlg::UpdateDisplay(HWND hWnd) {
 
   for (int i = 0; i < requiredRows; ++i) {
     if (i < (int)data.bids.size()) {
-      ListView_SetItemText(hList, i, 0, (LPSTR)FormatNumber(data.bids[i].queue).c_str());
-      ListView_SetItemText(hList, i, 1, (LPSTR)FormatNumber((data.bids[i].volume) / 100).c_str());
-      ListView_SetItemText(hList, i, 2, (LPSTR)FormatNumber(data.bids[i].price).c_str());
+      ListView_SetItemText(hList, i, 1, (LPSTR)FormatNumber(data.bids[i].queue).c_str());
+      ListView_SetItemText(hList, i, 2, (LPSTR)FormatNumber((data.bids[i].volume) / 100).c_str());
+      ListView_SetItemText(hList, i, 3, (LPSTR)FormatNumber(data.bids[i].price).c_str());
     } else {
-      ListView_SetItemText(hList, i, 0, "");
       ListView_SetItemText(hList, i, 1, "");
       ListView_SetItemText(hList, i, 2, "");
+      ListView_SetItemText(hList, i, 3, "");
     }
 
     if (i < (int)data.offers.size()) {
-      ListView_SetItemText(hList, i, 3, (LPSTR)FormatNumber(data.offers[i].price).c_str());
-      ListView_SetItemText(hList, i, 4, (LPSTR)FormatNumber((data.offers[i].volume) / 100).c_str());
-      ListView_SetItemText(hList, i, 5, (LPSTR)FormatNumber(data.offers[i].queue).c_str());
+      ListView_SetItemText(hList, i, 4, (LPSTR)FormatNumber(data.offers[i].price).c_str());
+      ListView_SetItemText(hList, i, 5, (LPSTR)FormatNumber((data.offers[i].volume) / 100).c_str());
+      ListView_SetItemText(hList, i, 6, (LPSTR)FormatNumber(data.offers[i].queue).c_str());
     } else {
-      ListView_SetItemText(hList, i, 3, "");
       ListView_SetItemText(hList, i, 4, "");
       ListView_SetItemText(hList, i, 5, "");
+      ListView_SetItemText(hList, i, 6, "");
     }
   }
 
@@ -310,7 +377,25 @@ void OrderbookDlg::UpdateDisplay(HWND hWnd) {
   }
 
   SendMessage(hList, WM_SETREDRAW, TRUE, 0);
-  InvalidateRect(hList, NULL, FALSE); // ← TRIGGER CUSTOM DRAW!
+  InvalidateRect(hList, NULL, FALSE); // <- TRIGGER CUSTOM DRAW!
+
+  // --- UPDATE FOOTER (FIXED) ---
+  if (pData->hFooterBidVal) {
+    // Format: "Freq / Lot"
+    std::string sVol = FormatNumber(pData->cachedSnapshot.total_bid_vol / 100); // Bagi 100 jadi Lot
+    std::string sFreq = FormatNumber(pData->cachedSnapshot.total_bid_freq);
+    
+    std::string text = sFreq + " / " + sVol;
+    SetWindowTextA(pData->hFooterBidVal, text.c_str());
+  }
+
+  if (pData->hFooterOffVal) {
+    std::string sVol = FormatNumber(pData->cachedSnapshot.total_offer_vol / 100);
+    std::string sFreq = FormatNumber(pData->cachedSnapshot.total_offer_freq);
+    
+    std::string text = sFreq + " / " + sVol;
+    SetWindowTextA(pData->hFooterOffVal, text.c_str());
+  }
 }
 
 void OrderbookDlg::ClearDisplay(HWND hWnd) {
@@ -330,75 +415,83 @@ void OrderbookDlg::ClearDisplay(HWND hWnd) {
 LRESULT OrderbookDlg::OnListViewCustomDraw(HWND hWnd, LPARAM lParam) {
   LPNMLVCUSTOMDRAW cd = (LPNMLVCUSTOMDRAW)lParam;
 
-  switch (cd->nmcd.dwDrawStage) {
-    case CDDS_PREPAINT:
-      return CDRF_NOTIFYITEMDRAW;
+  // 1. Fase Awal: Minta notifikasi per-item
+  if (cd->nmcd.dwDrawStage == CDDS_PREPAINT) 
+    return CDRF_NOTIFYITEMDRAW;
 
-    case CDDS_ITEMPREPAINT:
-      return CDRF_NOTIFYSUBITEMDRAW;
+  // 2. Fase Item: Minta notifikasi per-subitem (kolom)
+  if (cd->nmcd.dwDrawStage == CDDS_ITEMPREPAINT) 
+    return CDRF_NOTIFYSUBITEMDRAW;
 
-    case CDDS_ITEMPREPAINT | CDDS_SUBITEM:
-    {
-      // =========================================================
-      // AMBIL DATA DARI CACHE (Bukan Fetch Ulang!)
-      // =========================================================
-      DialogData* pData = GetDialogData(hWnd);
-      if (!pData || !pData->dataReady) {
-        cd->clrText = RGB(0, 0, 0);
-        cd->clrTextBk = RGB(255, 255, 255);
-        return CDRF_DODEFAULT;
-      }
+  // 3. Fase SubItem: Saatnya Mewarnai!
+  if (cd->nmcd.dwDrawStage == (CDDS_ITEMPREPAINT | CDDS_SUBITEM)) {
+    DialogData* pData = GetDialogData(hWnd);
+        
+    int row = (int)cd->nmcd.dwItemSpec; // Baris ke berapa (0-9 biasanya)
+    int col = cd->iSubItem;             // Kolom ke berapa
+        
+    // Ambil data terbaru (Pastikan pointer m_client valid)
+    // Gue pake const reference biar cepet, gak copy data
+    // const auto& data = m_client->getData(); 
+    const OrderbookSnapshot& data = pData->cachedSnapshot;
+    double prev = data.prev_close;
 
-      const OrderbookSnapshot& data = pData->cachedSnapshot;
-      int item = (int)cd->nmcd.dwItemSpec;
-      int subitem = cd->iSubItem;
+    // Definisi Warna
+    COLORREF clrUp   = RGB(0, 166, 62);           // Hijau Soft
+    COLORREF clrDown = RGB(231, 0, 11);           // Merah Soft
+    COLORREF clrSame = RGB(151, 145, 52);         // Kuning Dark
+    COLORREF clrBlue = RGB(100, 100, 255);        // Biru (buat Freq)
+    COLORREF clrTextDefault = RGB(0, 0, 0);       // Black
 
-      cd->clrText = RGB(0, 0, 0);
-      cd->clrTextBk = RGB(255, 255, 255);
+    // Default text color
+    cd->clrText = clrTextDefault;
 
-      // Hanya warnai kolom harga: Bid (2) dan Offer (3)
-      if (subitem != 2 && subitem != 3) {
-        return CDRF_DODEFAULT;
-      }
+    // Mapping Index Baru:
+    // 0: Dummy
+    // 1: Freq (Kiri) -> Biru
+    // 2: Lot
+    // 3: Bid Price   -> Warna Warni
+    // 4: Offer Price -> Warna Warni
+    // 5: Lot
+    // 6: Freq (Kanan) -> Biru
 
-      long price = 0;
-      bool valid = false;
+    // --- LOGIC PER KOLOM ---
 
-      if (subitem == 2 && item < (int)data.bids.size()) {
-        price = data.bids[item].price;
-        valid = true;
-      }
-      else if (subitem == 3 && item < (int)data.offers.size()) {
-        price = data.offers[item].price;
-        valid = true;
-      }
-
-      if (!valid || price == 0) {
-        return CDRF_DODEFAULT;
-      }
-
-      long prev = (long)data.prev_close;
-
-      // =========================================================
-      // LOGIC WARNA (Sekarang prev_close pasti valid!)
-      // =========================================================
-      if (prev == 0) {
-        // Fallback: kalau prev masih 0, warnain hitam dulu
-        cd->clrText = RGB(0, 0, 0);
-      }
-      else if (price > prev) {
-        cd->clrText = RGB(0, 180, 0);   // Hijau
-        OutputDebugStringA("[CustomDraw] HIJAU applied");
-      }
-      else if (price < prev) {
-        cd->clrText = RGB(200, 0, 0);   // Merah
-      }
-      else {
-        cd->clrText = RGB(0, 0, 0);     // Hitam (sama)
-      }
-
-      return CDRF_DODEFAULT;
+    // A. Kolom Freq (Misal col 0 dan 5) -> Biru
+    if (col == 1 || col == 6) {
+      cd->clrText = clrBlue;
     }
+
+    // B. Kolom BID Price (Misal col 2)
+    else if (col == 3) {
+      // Cek bounds vector biar gak crash
+      if (row < (int)data.bids.size()) {
+        double price = data.bids[row].price;
+          
+        if (price > 0 && prev > 0) {
+          if (price > prev)      cd->clrText = clrUp;
+          else if (price < prev) cd->clrText = clrDown;
+          else                   cd->clrText = clrSame;
+        }
+      }
+    }
+
+    // C. Kolom OFFER Price (Misal col 3)
+    else if (col == 4) {
+      // Cek bounds vector
+      if (row < (int)data.offers.size()) {
+        double price = data.offers[row].price;
+          
+        if (price > 0 && prev > 0) {
+          if (price > prev)      cd->clrText = clrUp;
+          else if (price < prev) cd->clrText = clrDown;
+          else                   cd->clrText = clrSame;
+        }
+      }
+    }
+
+    // PENTING: Return CDRF_NEWFONT supaya warna diaplikasikan
+    return CDRF_NEWFONT;
   }
 
   return CDRF_DODEFAULT;
@@ -412,10 +505,55 @@ void OrderbookDlg::InitListView(HWND hWnd) {
   SetWindowLong(hList, GWL_STYLE, GetWindowLong(hList, GWL_STYLE) | LVS_REPORT);
   ListView_SetExtendedListViewStyle(hList, LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_DOUBLEBUFFER);
 
+  // Dummy Column
+  LVCOLUMNA lvcDummy = {0};
+  lvcDummy.mask = LVCF_WIDTH;
+  lvcDummy.cx = 0;    // Width 0
+  ListView_InsertColumn(hList, 0 , &lvcDummy);
+
   RECT rc;
   GetClientRect(hList, &rc);
   int scrollWidth = GetSystemMetrics(SM_CXVSCROLL);
   int totalWidth = rc.right - scrollWidth;
+
+  double weights[6] = {
+    1.2, // Freq (Bid)
+    2.1, // Lot (Bid)
+    1.5, // Bid
+    1.5, // Offer
+    2.1,  // Lot (Offer)
+    1.2, // Freq (Offer)
+  };
+
+  double totalWeight = 0;
+  for (double w : weights) totalWeight += w;
+
+  // Hitung pixel width per kolom
+  int colWidth[6];
+  int used = 0;
+
+  for (int i = 0; i < 6; i++) {
+    colWidth[i] = (int)(totalWidth * (weights[i] / totalWeight));
+    used += colWidth[i];
+  }
+
+  // Koreksi rounding error → kolom terakhir
+  colWidth[5] += (totalWidth - used);
+
+  LVCOLUMNA lvc = {};
+  lvc.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM;
+  lvc.fmt  = LVCFMT_CENTER;
+
+  char* cols[] = { "Freq", "Lot", "Bid", "Offer", "Lot", "Freq" };
+
+  for (int i = 0; i < 6; i++) {
+    lvc.iSubItem = i + 1;
+    lvc.pszText = cols[i];
+    lvc.cx = colWidth[i];
+    ListView_InsertColumn(hList, i + 1, &lvc);
+  }
+
+  /* Width dibagi ata
   int w = totalWidth / 6;
   int wLast = totalWidth - (w * 5);
 
@@ -426,10 +564,19 @@ void OrderbookDlg::InitListView(HWND hWnd) {
   char* cols[] = { "Freq", "Lot", "Bid", "Offer", "Lot", "Freq" };
   
   for (int i = 0; i < 6; i++) {
-    lvc.iSubItem = i;
+    lvc.iSubItem = i + 1;
     lvc.pszText = cols[i];
     lvc.cx = (i == 5) ? wLast : w;
-    ListView_InsertColumn(hList, i, &lvc);
+    ListView_InsertColumn(hList, i + 1, &lvc);
+  }
+  */
+
+  if (!g_hImageList) {
+    // width bebas, height = tinggi row yang lu mau
+    g_hImageList = ImageList_Create(1, 22, ILC_COLOR32 | ILC_MASK, 1, 1);
+
+    // Set ke ListView (SMALL image is enough)
+    ListView_SetImageList(hList, g_hImageList, LVSIL_SMALL);
   }
 }
 

@@ -26,6 +26,11 @@ struct OrderbookSnapshot {
   double volume = 0;
   double value = 0; 
   double frequency = 0;
+
+  long long total_bid_vol = 0;   // Total Lot Bid
+  long total_bid_freq = 0;
+  long long total_offer_vol = 0; // Total Lot Offer
+  long total_offer_freq = 0;
   
   // The Orderbook Rows
   std::vector<OrderLevel> bids;
@@ -36,6 +41,8 @@ struct OrderbookSnapshot {
     bids.clear();
     offers.clear();
     last_price = prev_close = open = high = low = change = percent = volume = value = frequency = 0;
+    total_bid_vol = total_bid_freq = 0;
+    total_offer_vol = total_offer_freq = 0;
   }
 };
 

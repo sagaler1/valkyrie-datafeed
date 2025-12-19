@@ -5,28 +5,34 @@
 // GLOBAL / STATIC
 // =======================================================
 
-// Font dipakai bersama (1x create, reuse)
 static HFONT g_hHeaderFont = NULL;
 
+// Logic perbandingan harga
 static PriceBaseColor CalcBaseColor(double value, double prev) {
-  if (prev <= 0 || value >= 0) return PriceBaseColor::NEUTRAL;
-
+  if (prev <= 0.0001 || value <= 0.0001) return PriceBaseColor::NEUTRAL;
+  
   if (value > prev) return PriceBaseColor::UP;
   if (value < prev) return PriceBaseColor::DOWN;
+  
+  return PriceBaseColor::FLAT; // Harga sama (Kuning)
+}
 
-  return PriceBaseColor::FLAT;
+// Helper khusus buat Change (vs 0, bukan prev)
+static PriceBaseColor CalcChgColor(double chg) {
+  if (chg > 0) return PriceBaseColor::UP;
+  if (chg < 0) return PriceBaseColor::DOWN;
+  return PriceBaseColor::NEUTRAL; // 0
 }
 
 static COLORREF GetBaseColor(PriceBaseColor c) {
   switch (c) {
-    case PriceBaseColor::UP:    return RGB(0, 170, 0);
-    case PriceBaseColor::DOWN:  return RGB(200, 0, 0);
-    case PriceBaseColor::FLAT:  return RGB(255, 140, 0);
-    default:  return RGB(0, 0, 0);
+    case PriceBaseColor::UP:    return RGB(0, 166, 62);    // Hijau lebih deep
+    case PriceBaseColor::DOWN:  return RGB(220, 0, 0);    // Merah
+    case PriceBaseColor::FLAT:  return RGB(151, 145, 52);  // Kuning/Emas
+    default:                    return RGB(0, 0, 0);      // Hitam (Netral)
   }
 }
 
-// Helper ambil state dari window
 static HeaderState* GetState(HWND hWnd) {
   return (HeaderState*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
 }
@@ -34,292 +40,158 @@ static HeaderState* GetState(HWND hWnd) {
 // =======================================================
 // HEADER PANEL WINDOW PROCEDURE
 // =======================================================
-static LRESULT CALLBACK HeaderPanelProc( HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam ) {
-    switch (msg) {
-      case WM_CREATE:
-      {
-        // =========================================
-        // INIT FONT (sekali saja per panel)
-        // =========================================
-        LOGFONT lf = {};
-        lf.lfHeight = -12;          // ~9pt
-        lf.lfWeight = FW_BOLD;
-        strcpy_s(lf.lfFaceName, "Arial");
+static LRESULT CALLBACK HeaderPanelProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+  switch (msg) {
+    case WM_CREATE: {
+      LOGFONT lf = {};
+      lf.lfHeight = -12; // ~9pt
+      lf.lfWeight = FW_BOLD;
+      strcpy_s(lf.lfFaceName, "Arial");
 
-        g_hHeaderFont = CreateFontIndirect(&lf);
+      g_hHeaderFont = CreateFontIndirect(&lf);
 
-        // =========================================
-        // ALOKASI STATE (DATA HEADER)
-        // Disimpan di GWLP_USERDATA
-        // =========================================
-        HeaderState* state = new HeaderState();
-        SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)state);
+      HeaderState* state = new HeaderState();
+      SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)state);
+      return 0;
+    }
 
-        return 0;
+    case WM_ERASEBKGND:
+      return TRUE; // Cegah flicker
+
+    case WM_PAINT: {
+      HeaderState* state = GetState(hWnd);
+      if (!state) break;
+
+      PAINTSTRUCT ps;
+      HDC hdc = BeginPaint(hWnd, &ps);
+
+      // --- Double Buffer Setup ---
+      RECT rc;
+      GetClientRect(hWnd, &rc);
+      
+      // Optimasi: CreateCompatibleDC itu ringan, tapi Bitmap agak berat.
+      // Tapi untuk UI sekecil header, recreate tiap frame masih sangat aman (microsecond).
+      HDC memDC = CreateCompatibleDC(hdc);
+      HBITMAP bmp = CreateCompatibleBitmap(hdc, rc.right, rc.bottom);
+      HBITMAP oldBmp = (HBITMAP)SelectObject(memDC, bmp);
+
+      SelectObject(memDC, g_hHeaderFont);
+      SetBkMode(memDC, TRANSPARENT);
+
+      // Fill Background (Warna Dialog Standard)
+      FillRect(memDC, &rc, GetSysColorBrush(COLOR_BTNFACE));
+
+      // --- Warna Label (Constant) ---
+      COLORREF clrLabel = RGB(80, 80, 80); // Abu Tua biar elegan
+
+      // --- Layout Grid Setup (3 Kolom x 3 Baris) ---
+      int W = rc.right;
+      int H = rc.bottom;
+      int colW = W / 3;
+      int rowH = H / 3;
+      
+      // Padding biar teks gak nempel pinggir
+      int padL = 5; // Padding Left
+      int padR = 5; // Padding Right
+
+      // Helper Macro buat gambar biar kodenya rapi
+      // LABEL (Kiri, Abu2) | VALUE (Kanan, Warna Warni)
+      #define DRAW_CELL(row, col, label, valText, colorEnum) \
+      { \
+        RECT rLabel = { col * colW + padL, row * rowH, (col + 1) * colW, (row + 1) * rowH }; \
+        RECT rVal   = { col * colW, row * rowH, (col + 1) * colW - padR, (row + 1) * rowH }; \
+        \
+        /* 1. Gambar Label */ \
+        SetTextColor(memDC, clrLabel); \
+        DrawTextA(memDC, label, -1, &rLabel, DT_LEFT | DT_VCENTER | DT_SINGLELINE); \
+        \
+        /* 2. Gambar Value */ \
+        SetTextColor(memDC, GetBaseColor(colorEnum)); \
+        DrawTextA(memDC, valText.c_str(), -1, &rVal, DT_RIGHT | DT_VCENTER | DT_SINGLELINE); \
       }
 
-      case WM_ERASEBKGND:
-        // SUPER PENTING
-        // Matikan erase background bawaan Windows
-        // = NO FLICKER
-        return TRUE;
+      // --- ROW 1 ---
+      DRAW_CELL(0, 0, "Last", state->last, state->last_base);
+      DRAW_CELL(0, 1, "Open", state->open, state->open_base);
+      DRAW_CELL(0, 2, "Lot",  state->lot,  PriceBaseColor::NEUTRAL);
 
-      case WM_PAINT:
-      {
-        HeaderState* state = GetState(hWnd);
-        if (!state) break;
+      // --- ROW 2 ---
+      DRAW_CELL(1, 0, "Prev", state->prev, PriceBaseColor::NEUTRAL);
+      DRAW_CELL(1, 1, "High", state->high, state->high_base);
+      DRAW_CELL(1, 2, "Val",  state->val,  PriceBaseColor::NEUTRAL);
 
-        PAINTSTRUCT ps;
-        HDC hdc = BeginPaint(hWnd, &ps);
+      // --- ROW 3 ---
+      DRAW_CELL(2, 0, "Chg",  state->pct,  state->chg_base); // Pake pct/chg base
+      DRAW_CELL(2, 1, "Low",  state->low,  state->low_base);
+      DRAW_CELL(2, 2, "Freq", state->freq, PriceBaseColor::NEUTRAL); // Atau mau biru? :D
 
-        // =========================================
-        // DOUBLE BUFFER SETUP
-        // =========================================
-        RECT rc;
-        GetClientRect(hWnd, &rc);
+        // --- Blit ke Layar ---
+        BitBlt(hdc, 0, 0, W, H, memDC, 0, 0, SRCCOPY);
 
-        HDC memDC = CreateCompatibleDC(hdc);
-        HBITMAP bmp = CreateCompatibleBitmap(
-          hdc,
-          rc.right - rc.left,
-          rc.bottom - rc.top
-        );
-
-        HBITMAP oldBmp = (HBITMAP)SelectObject(memDC, bmp);
-
-        SelectObject(memDC, g_hHeaderFont);
-        SetBkMode(memDC, TRANSPARENT);
-
-        // Background (ikut tema dialog)
-        FillRect(memDC, &rc, (HBRUSH)(COLOR_BTNFACE + 1));
-
-        // =========================================
-        // LAYOUT GRID MANUAL (3x3)
-        // =========================================
-        int colW = (rc.right - rc.left) / 3;
-        int rowH = (rc.bottom - rc.top) / 3;
-        double space = colW * 0.1;
-
-        RECT r;
-
-        // ---------- ROW 1 ----------
-        // Last
-        r = { 5, 0, colW, rowH };
-        DrawTextA( memDC, ("Last "), -1, &r, DT_LEFT | DT_VCENTER | DT_SINGLELINE );
-
-        r = { 0, 0, static_cast<LONG>(colW * 0.9), rowH };
-        SetTextColor(memDC, GetBaseColor(state->last_base));
-        DrawTextA(
-          memDC,
-          state->last.c_str(),
-          -1,
-          &r,
-          DT_RIGHT | DT_VCENTER | DT_SINGLELINE
-        );
-
-        // Open
-        r = { static_cast<LONG>(colW + space), 0, static_cast<LONG>((colW * 2) + space), rowH };
-        DrawTextA( memDC, ("Open "), -1, &r, DT_LEFT | DT_VCENTER | DT_SINGLELINE );
-
-        r = { colW, 0, static_cast<LONG>((colW * 2) - space), rowH };
-        SetTextColor(memDC, GetBaseColor(state->open_base));
-        DrawTextA(
-          memDC,
-          (state->open).c_str(),
-          -1,
-          &r,
-          DT_RIGHT | DT_VCENTER | DT_SINGLELINE
-        );
-
-        // Lot
-        r = { static_cast<LONG>((colW * 2) + space), 0, rc.right, rowH };
-        DrawTextA( memDC, ("Lot "), -1, &r, DT_LEFT | DT_VCENTER | DT_SINGLELINE );
-
-        r = { static_cast<LONG>((colW * 2) + space), 0, rc.right, rowH };
-        DrawTextA(
-          memDC,
-          state->lot.c_str(),
-          -1,
-          &r,
-          DT_RIGHT | DT_VCENTER | DT_SINGLELINE
-        );
-
-        /*r = { colW * 2, 0, rc.right, rowH };
-        DrawTextA(
-          memDC,
-          state->pct.c_str(),
-          -1,
-          &r,
-          DT_RIGHT | DT_VCENTER | DT_SINGLELINE
-        );*/
-
-        // ---------- ROW 2 ----------
-        r = { 5, rowH, colW, rowH * 2 };
-        DrawTextA( memDC, ("Prev "), -1, &r, DT_LEFT | DT_VCENTER | DT_SINGLELINE );
-
-        r = { 5, rowH, static_cast<LONG>(colW * 0.9), rowH * 2 };
-        DrawTextA(
-          memDC,
-          (state->prev).c_str(),
-          -1,
-          &r,
-          DT_RIGHT | DT_VCENTER | DT_SINGLELINE
-        );
-
-        // High
-        r = { static_cast<LONG>(colW + space), rowH, static_cast<LONG>((colW * 2) + space), rowH * 2 };
-        DrawTextA( memDC, ("High "), -1, &r, DT_LEFT | DT_VCENTER | DT_SINGLELINE );
-
-        r = { colW, rowH, static_cast<LONG>((colW * 2) - space), rowH * 2 };
-        DrawTextA(
-          memDC,
-          (state->high).c_str(),
-          -1,
-          &r,
-          DT_RIGHT | DT_VCENTER | DT_SINGLELINE
-        );
-
-        // Val
-        r = { static_cast<LONG>((colW * 2) + space), rowH, rc.right, rowH * 2 };
-        DrawTextA( memDC, ("Val "), -1, &r, DT_LEFT | DT_VCENTER | DT_SINGLELINE );
-
-        r = { static_cast<LONG>((colW * 2) - space), rowH, rc.right, rowH * 2 };
-        DrawTextA(
-          memDC,
-          (state->val).c_str(),
-          -1,
-          &r,
-          DT_RIGHT | DT_VCENTER | DT_SINGLELINE
-        );
-
-        // ---------- ROW 3 ----------
-        // Chg
-        r = { 5, rowH * 2, colW, rc.bottom };
-        DrawTextA( memDC, ("Chg "), -1, &r, DT_LEFT | DT_VCENTER | DT_SINGLELINE );
-
-        r = { 5, rowH * 2, static_cast<LONG>(colW * 0.9), rc.bottom };
-        DrawTextA(
-          memDC,
-          state->pct.c_str(),
-          -1,
-          &r,
-          DT_RIGHT | DT_VCENTER | DT_SINGLELINE
-        );
-
-        // Low
-        r = { static_cast<LONG>(colW + space), rowH * 2, static_cast<LONG>((colW * 2) + space), rc.bottom };
-        DrawTextA( memDC, ("Low "), -1, &r, DT_LEFT | DT_VCENTER | DT_SINGLELINE );
-
-        r = { colW, rowH * 2, static_cast<LONG>((colW * 2) - space), rc.bottom };
-        DrawTextA(
-          memDC,
-          state->low.c_str(),
-          -1,
-          &r,
-          DT_RIGHT | DT_VCENTER | DT_SINGLELINE
-        );
-
-        // Freq
-        r = { static_cast<LONG>((colW * 2) + space), rowH * 2, rc.right, rc.bottom };
-        DrawTextA( memDC, ("Freq "), -1, &r, DT_LEFT | DT_VCENTER | DT_SINGLELINE );
-
-        r = { colW * 2, rowH * 2, rc.right, rc.bottom };
-        DrawTextA(
-          memDC,
-          state->freq.c_str(),
-          -1,
-          &r,
-          DT_RIGHT | DT_VCENTER | DT_SINGLELINE
-        );
-
-        // =========================================
-        // BLIT SEKALI KE SCREEN
-        // =========================================
-        BitBlt(
-          hdc,
-          0, 0,
-          rc.right - rc.left,
-          rc.bottom - rc.top,
-          memDC,
-          0, 0,
-          SRCCOPY
-        );
-
-        // Cleanup GDI
+        // Cleanup
         SelectObject(memDC, oldBmp);
         DeleteObject(bmp);
         DeleteDC(memDC);
 
         EndPaint(hWnd, &ps);
         return 0;
-      }
+    }
 
-      case WM_DESTROY:
-      {
-        // =========================================
-        // CLEANUP STATE
-        // =========================================
-        HeaderState* state = GetState(hWnd);
-        delete state;
-        SetWindowLongPtr(hWnd, GWLP_USERDATA, 0);
-        return 0;
+    case WM_DESTROY: {
+      HeaderState* state = GetState(hWnd);
+      if (state) delete state;
+      SetWindowLongPtr(hWnd, GWLP_USERDATA, 0);
+      
+      // Hapus global font kalau perlu (biasanya sih di AppExit, tapi gpp disini kalau panel cuma 1)
+      if (g_hHeaderFont) { 
+        DeleteObject(g_hHeaderFont); 
+        g_hHeaderFont = NULL; 
       }
-      }
-
-    return DefWindowProc(hWnd, msg, wParam, lParam);
+      return 0;
+    }
+  }
+  return DefWindowProc(hWnd, msg, wParam, lParam);
 }
 
 // =======================================================
 // PUBLIC API
 // =======================================================
 
-// Register class + create panel
-HWND CreateHeaderPanel( HWND hParent, HINSTANCE hInst, int x, int y, int w, int h ) {
-  static bool registered = false;
+HWND CreateHeaderPanel(HWND hParent, HINSTANCE hInst, int x, int y, int w, int h) {
+    static bool registered = false;
+    if (!registered) {
+        WNDCLASS wc = {};
+        wc.lpfnWndProc = HeaderPanelProc;
+        wc.hInstance = hInst;
+        wc.lpszClassName = "OrderbookHeaderPanel";
+        wc.hbrBackground = NULL; // No background brush (kita handle di WM_PAINT)
+        wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+        RegisterClass(&wc);
+        registered = true;
+    }
 
-  if (!registered) {
-    WNDCLASS wc = {};
-    wc.lpfnWndProc = HeaderPanelProc;
-    wc.hInstance = hInst;
-    wc.lpszClassName = "OrderbookHeaderPanel";
-    wc.hbrBackground = NULL; // kita gambar sendiri
-    RegisterClass(&wc);
-
-    registered = true;
-  }
-
-  HWND hWnd = CreateWindowEx(
-    0,
-    "OrderbookHeaderPanel",
-    NULL,
-    WS_CHILD | WS_VISIBLE,
-    x, y, w, h,
-    hParent,
-    NULL,
-    hInst,
-    NULL
-  );
-
-  return hWnd;
+    return CreateWindowEx(0, "OrderbookHeaderPanel", NULL,
+        WS_CHILD | WS_VISIBLE, x, y, w, h, hParent, NULL, hInst, NULL);
 }
 
-// Update data + repaint
 void UpdateHeaderPanel(HWND hPanel, const HeaderState& data) {
-  if (!hPanel) return;
+    if (!hPanel) return;
+    HeaderState* state = (HeaderState*)GetWindowLongPtr(hPanel, GWLP_USERDATA);
+    if (!state) return;
 
-  HeaderState* state = (HeaderState*)GetWindowLongPtr(hPanel, GWLP_USERDATA);
+    // [FIX 2] Copy DATA DULUAN, baru hitung warna!
+    // Supaya hasil hitungan gak ketimpa data mentah (yang basenya NEUTRAL semua)
+    *state = data; 
 
-  if (!state) return;
+    // Hitung warna
+    state->last_base = CalcBaseColor(state->last_num, state->prev_num);
+    state->open_base = CalcBaseColor(state->open_num, state->prev_num);
+    state->high_base = CalcBaseColor(state->high_num, state->prev_num);
+    state->low_base  = CalcBaseColor(state->low_num,  state->prev_num);
+    
+    // Logic khusus Chg (vs 0)
+    state->chg_base  = CalcChgColor(state->chg_num);
 
-  state->last_base = CalcBaseColor(data.last_num, data.prev_num);
-  state->open_base = CalcBaseColor(data.open_num, data.prev_num);
-  state->high_base = CalcBaseColor(data.high_num, data.prev_num);
-  state->low_base = CalcBaseColor(data.low_num, data.prev_num);
-  state->chg_base = CalcBaseColor(data.chg_num, 0);
-
-  // Copy data
-  *state = data;
-
-  // Trigger repaint (NO ERASE)
-  InvalidateRect(hPanel, NULL, FALSE);
+    // Repaint
+    InvalidateRect(hPanel, NULL, FALSE);
 }

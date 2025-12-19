@@ -34,6 +34,13 @@ std::vector<std::string> ob_split(const std::string& str, char delimiter) {
   return tokens;
 }
 
+// Parse string -> long long
+long long parse_comma_str(const std::string&s) {
+  std::string clean = s;
+  clean.erase(std::remove(clean.begin(), clean.end(), ','), clean.end());
+  try { return std::stoll(clean); } catch(...) { return 0; }
+}
+
 // =========================================================
 // LIFECYCLE
 // =========================================================
@@ -277,6 +284,38 @@ bool OrderbookClient::parseSnapshotJson(const std::string& jsonResponse, const s
       else m_data.volume = data.value("volume", 0.0);
     }
 
+    if (data.contains("total_bid_offer")) {
+      auto tbo = data["total_bid_offer"];
+
+      // BID
+      if (tbo.contains("bid")) {
+        auto b = tbo["bid"];
+        // handle freq (string/int)
+        if (b.contains("freq")) {
+          if (b["freq"].is_string()) m_data.total_bid_freq = parse_comma_str(b["freq"].get<std::string>());
+          else m_data.total_bid_freq = b.value("freq", 0);
+        }
+        // handle lot/vol (string "622,200")
+        if (b.contains("lot")) {
+          if(b["lot"].is_string()) m_data.total_bid_vol = parse_comma_str(b["lot"].get<std::string>());
+          else m_data.total_bid_vol = b.value("lot", 0LL);
+        }
+      }
+
+      // OFFER
+      if (tbo.contains("offer")) {
+        auto o = tbo["offer"];
+        if (o.contains("freq")) {
+          if (o["freq"].is_string()) m_data.total_offer_freq = parse_comma_str(o["freq"].get<std::string>());
+          else m_data.total_offer_freq = o.value("freq", 0);
+        }
+        if (o.contains("lot")) {
+          if (o["lot"].is_string()) m_data.total_offer_vol = parse_comma_str(o["lot"].get<std::string>());
+          else m_data.total_offer_vol = o.value("lot", 0LL);
+        }
+      }
+    }
+
     return true;
   } catch (...) {
     return false;
@@ -309,10 +348,22 @@ void OrderbookClient::handleMessage(const std::string& msg) {
       // Pastikan update hanya untuk symbol yang sedang aktif
       if (m_data.symbol == feedMsg.stock_data.symbol) {
         m_data.last_price = feedMsg.stock_data.lastprice;
-        m_data.prev_close = feedMsg.stock_data.previous;
+
+        /*m_data.prev_close = feedMsg.stock_data.previous;
         m_data.open = feedMsg.stock_data.open;
         m_data.high = feedMsg.stock_data.high;
-        m_data.low = feedMsg.stock_data.low;
+        m_data.low = feedMsg.stock_data.low;*/
+
+        // Fix
+        if (feedMsg.stock_data.previous > 0) {
+          m_data.prev_close = feedMsg.stock_data.previous;
+        }
+        
+        if (feedMsg.stock_data.open > 0) m_data.open = feedMsg.stock_data.open;
+        if (feedMsg.stock_data.high > 0) m_data.high = feedMsg.stock_data.high;
+        if (feedMsg.stock_data.low > 0)  m_data.low  = feedMsg.stock_data.low;
+        // End Fix
+
         m_data.volume = feedMsg.stock_data.volume;
         m_data.value = feedMsg.stock_data.value;
         m_data.frequency = feedMsg.stock_data.frequency;
@@ -343,15 +394,53 @@ void OrderbookClient::parseStreamBody(const std::string& body) {
   }
 
   std::vector<OrderLevel> tempVec;
+  long tempTotalFreq = 0;
+  long long tempTotalVol = 0;
+
   for (size_t i = 3; i < tokens.size(); i++) {
-    if (tokens[i].find('&') != std::string::npos || tokens[i].empty()) continue;
+    // Cek apakah token ini adalah Footer (mengandung '-' dan '&')
+    // Format: Epoch-Freq&Vol (ex: 1750818351-196&1200200)
+    size_t posAmp = tokens[i].find('&');
+    if (posAmp != std::string::npos) {
+      // footer!
+      try {
+        // Cari posisi '-' terakhir sebelum '&'
+        size_t posDash = tokens[i].rfind('-', posAmp);
+        if (posDash != std::string::npos) {
+          // string freq
+          std::string sFreq = tokens[i].substr(posDash + 1, posAmp - posDash - 1);
+          // string vol
+          std::string sVol = tokens[i].substr(posAmp + 1);
+
+          tempTotalFreq = std::stol(sFreq);
+          tempTotalVol = std::stoll(sVol);
+        }
+      } catch(...) {}
+      continue; // skip parsing sebagai row orderbook
+    }
+
+    // skip if empty
+    if (tokens[i].empty()) continue;
+
+    // parse row biasa
+    // if (tokens[i].find('&') != std::string::npos || tokens[i].empty()) continue;
     parseRow(tokens[i], tempVec);
   }
 
   {
     std::lock_guard<std::mutex> lock(m_dataMutex);
-    if (type == "BID") m_data.bids = tempVec;
-    else if (type == "OFFER") m_data.offers = tempVec;
+    if (type == "BID") {
+      m_data.bids = tempVec;
+      // update total
+      m_data.total_bid_freq = tempTotalFreq;
+      m_data.total_bid_vol = tempTotalVol;
+    }
+    else if (type == "OFFER") {
+      m_data.offers = tempVec;
+      // update total
+      m_data.total_offer_freq = tempTotalFreq;
+      m_data.total_offer_vol = tempTotalVol;
+    }
   }
 }
 
