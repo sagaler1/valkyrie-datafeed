@@ -237,11 +237,11 @@ bool OrderbookClient::parseSnapshotJson(const std::string& jsonResponse, const s
     m_data.company_type = type;
 
     // Parse Header
-    if (data.contains("average")) {
-      if (data["average"].is_string()) 
-        m_data.last_price = std::stod(data["average"].get<std::string>());
+    if (data.contains("lastprice")) {
+      if (data["lastprice"].is_string()) 
+        m_data.last_price = std::stod(data["lastprice"].get<std::string>());
       else 
-        m_data.last_price = data.value("average", 0.0);
+        m_data.last_price = data.value("lastprice", 0.0);
     }
 
     // Helper lambda
@@ -378,6 +378,26 @@ void OrderbookClient::handleMessage(const std::string& msg) {
   }
 }
 
+void OrderbookClient::calculateDiff(std::vector<OrderLevel>& newVec, const std::vector<OrderLevel>& oldVec) {
+  for (auto& newItem : newVec) {
+    newItem.lot_change = 0;   // default 0
+
+    // cari harga yang sama di data lama
+    for (const auto& oldItem : oldVec) {
+      if (newItem.price == oldItem.price) {
+        // harga sama, hitung selisih volume (raw)
+        long long diff = newItem.volume - oldItem.volume;
+
+        // konversi ke lot
+        newItem.lot_change = (long)(diff / 100);
+        break;
+      }
+    }
+    // Optional: Jika harga tidak ketemu di oldVec (level baru), change tetap 0 
+    // biar chart gak berisik, atau bisa diset = newItem.volume / 100.
+  }
+}
+
 void OrderbookClient::parseStreamBody(const std::string& body) {
   // Format: #O|BBCA|BID|...
   auto tokens = ob_split(body, '|');
@@ -429,13 +449,18 @@ void OrderbookClient::parseStreamBody(const std::string& body) {
 
   {
     std::lock_guard<std::mutex> lock(m_dataMutex);
+
+    // Tambahan lot_changes
     if (type == "BID") {
+      // Compare tempVec (baru) dengan m_data.bids (lama)
+      calculateDiff(tempVec, m_data.bids);
       m_data.bids = tempVec;
       // update total
       m_data.total_bid_freq = tempTotalFreq;
       m_data.total_bid_vol = tempTotalVol;
     }
     else if (type == "OFFER") {
+      calculateDiff(tempVec, m_data.offers);
       m_data.offers = tempVec;
       // update total
       m_data.total_offer_freq = tempTotalFreq;

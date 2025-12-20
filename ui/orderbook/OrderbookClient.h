@@ -73,6 +73,7 @@ private:
     void parseStreamBody(const std::string& body);
     void parseRow(const std::string& rawRow, std::vector<OrderLevel>& targetVec);
     bool parseSnapshotJson(const std::string& jsonResponse, const std::string& symbol);
+    void calculateDiff(std::vector<OrderLevel>& newVec, const std::vector<OrderLevel>& oldVec);
 
     // Proto Builders
     std::string buildHandshake(const std::string& userId, const std::string& key);

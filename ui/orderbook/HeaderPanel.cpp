@@ -87,25 +87,31 @@ static LRESULT CALLBACK HeaderPanelProc(HWND hWnd, UINT msg, WPARAM wParam, LPAR
       // Layout Grid Setup (3 Kolom x 3 Baris)
       int W = rc.right;
       int H = rc.bottom;
-      int colW = W / 3;
+      //int colW = W / 3;
       int rowH = H / 3;
       
       // Padding supaya teks tidak nempel pinggir
       int padL = 5; // Padding Left
       int padR = 5; // Padding Right
+      int gap = 15;
+
+      // Total lebar yang dipake 3 kolom + 2 gap (karena ada 2 celah antar 3 kolom)
+      int totalContentW = W - (2 * gap);
+      int colW = totalContentW / 3;
 
       // Helper Macro buat gambar biar kodenya rapi
       // LABEL (Kiri, Abu2) | VALUE (Kanan, Warna Warni)
       #define DRAW_CELL(row, col, label, valText, colorEnum) \
       { \
-        RECT rLabel = { col * colW + padL, row * rowH, (col + 1) * colW, (row + 1) * rowH }; \
-        RECT rVal   = { col * colW, row * rowH, (col + 1) * colW - padR, (row + 1) * rowH }; \
+        int left   = col * (colW + gap); \
+        int right  = left + colW; \
         \
-        /* 1. Gambar Label */ \
+        RECT rLabel = { left + padL, row * rowH, right, (row + 1) * rowH }; \
+        RECT rVal   = { left, row * rowH, right - padR, (row + 1) * rowH }; \
+        \
         SetTextColor(memDC, clrLabel); \
         DrawTextA(memDC, label, -1, &rLabel, DT_LEFT | DT_VCENTER | DT_SINGLELINE); \
         \
-        /* 2. Gambar Value */ \
         SetTextColor(memDC, GetBaseColor(colorEnum)); \
         DrawTextA(memDC, valText.c_str(), -1, &rVal, DT_RIGHT | DT_VCENTER | DT_SINGLELINE); \
       }

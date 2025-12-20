@@ -8,6 +8,7 @@ struct OrderLevel {
   long price = 0;
   long queue = 0;
   long volume = 0;
+  long lot_change = 0;
 };
 
 struct OrderbookSnapshot {
