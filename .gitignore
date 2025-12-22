@@ -14,9 +14,19 @@
 *.cmake
 
 # Extradata
-# /extradata/financial/
-# /extradata/ownership/
-# /extradata/ritelflow/
+/extradata/financial/*
+/extradata/ownership/*
+/extradata/ritelflow/*
+!/extradata/financial/.gitkeep
+!/extradata/ownership/.gitkeep
+!/extradata/ownership/.gitkeep
+
+# Orderbook
+/ui/orderbook/*.cpp
+!/ui/orderbook/.gitkeep
+
+# Grid
+/core/grid/*.cpp
 
 # editor cache
 .zed/

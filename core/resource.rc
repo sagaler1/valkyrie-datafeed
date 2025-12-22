@@ -91,7 +91,7 @@ BEGIN
   // ---- Orderbook Table
   CONTROL "", IDC_LIST1, "SysListView32",
       LVS_REPORT | LVS_SINGLESEL | LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,
-      0, 70, 280, 167
+      0, 60, 280, 167
 END
 
 

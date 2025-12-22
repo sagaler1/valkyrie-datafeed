@@ -1,67 +1,64 @@
 #pragma once
 #include <windows.h>
-#include <string>
 #include <vector>
+#include <string>
 
-// Struktur Cell support text & warna
+// Struktur Data Grid
 struct GridCell {
-  std::string text; 
-  COLORREF textColor = RGB(0,0,0);
-  COLORREF bgColor = RGB(255,255,255); // Default putih
-};
+  std::string text;
+  COLORREF textColor = RGB(0, 0, 0);
+  COLORREF bgColor = RGB(255, 255, 255);
 
-struct GridColumn {
-  std::string title;
-  int width;
+  // histogram
+  float barPercent = 0.0f;  // 0.0 sampai 1.0
+  COLORREF barColor = RGB(200, 200, 200);
+  int barAlign = -1; // -1 (inherit), DT_LEFT, DT_RIGHT
 };
 
 struct GridRow {
   std::vector<GridCell> cells;
+  void* userData = nullptr;
+};
+
+struct GridColumn {
+  std::string header;
+  int width;
+  int align = DT_CENTER; 
+  int minWidth = 30; // Min width biar gak bisa di-collapse sampai 0
 };
 
 struct GridFooter {
   std::vector<GridCell> cells;
+  bool visible = true;
+  int height = 24;
 };
 
 class GridControl {
 public:
   static void Register(HINSTANCE hInst);
-  static HWND Create(HWND parent, int x, int y, int w, int h, int id);
+  static void Unregister(HINSTANCE hInst);
   
-  // Setter Data
-  static void SetColumns(const std::vector<GridColumn>& cols);
-  static void SetRows(const std::vector<GridRow>& newRows);
-  static void SetFooter(const GridFooter& newFooter);
+  // Create Control
+  static HWND Create(HWND hParent, int x, int y, int w, int h, int id);
+
+  // Data Setters
+  static void SetColumns(HWND hWnd, const std::vector<GridColumn>& cols);
+  static void SetRows(HWND hWnd, const std::vector<GridRow>& rows);
+  static void SetFooter(HWND hWnd, const GridFooter& footer);
   
-  // Trigger Repaint
+  // Selection
+  static void SetSelectedRow(HWND hWnd, int rowIndex);
+  static int GetSelectedRow(HWND hWnd);
+  
+  // Commands
   static void Redraw(HWND hWnd);
 
-  static LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
+  // Proc
+  static LRESULT CALLBACK GridWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 private:
-  static void OnPaint(HWND hWnd);
-  static void DrawHeader(HDC hdc, RECT& rc);
-  static void DrawBody(HDC hdc, RECT& rc);
-  static void DrawFooter(HDC hdc, RECT& rc);
-
-  // Mouse Interaction (Resize Column, etc - Basic skeleton)
-  static void OnMouseMove(HWND, int x, int y);
-  static void OnLButtonDown(HWND, int x, int y);
-  static void OnLButtonUp(HWND);
-
-  // Helpers
-  static std::wstring s2ws(const std::string& str);
-  
-  static const int ROW_HEIGHT = 22;
-  static const int HEADER_HEIGHT = 24;
-  static const int FOOTER_HEIGHT = 24;
-
-  // Data Storage (Static Singleton style per request)
-  static inline std::vector<GridColumn> columns;
-  static inline std::vector<GridRow> rows;
-  static inline GridFooter footer;
-  
-  // State
-  static inline int draggingColumn = -1;
-  static inline int dragStartX = 0;
+  // Internal Helper
+  static void UpdateScrollBars(HWND hWnd);
+  static void DrawXorLine(HWND hWnd, int x);
+  static void EnsureRowVisible(HWND hWnd, int rowIndex);
 };
